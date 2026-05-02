@@ -1,6 +1,10 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
 .DS_Store
 data/raw/
 .idea/
+
+# Local secrets — never commit
+.env
