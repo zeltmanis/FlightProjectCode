@@ -16,6 +16,7 @@ pip install -r requirements.txt
 ```bash
 python scripts/fetch_bts.py        # downloads Jan 2023 BTS (~50 MB zip → CSV)
 python scripts/fetch_weather.py    # hits Open-Meteo for 5 airports, Jan 2–8
+python scripts/fetch_airports.py   # OurAirports → US large+medium with IATA (~180 KB)
 python scripts/inspect_data.py     # prints row counts, null rates, samples
 ```
 
@@ -23,7 +24,8 @@ python scripts/inspect_data.py     # prints row counts, null rates, samples
 
 - **Airports**: ATL, ORD, DFW, DEN, LAX (top 5 US hubs, varied weather profiles)
 - **Week**: 2023-01-02 to 2023-01-08 (post-holiday Mon–Sun)
-- **Sources**: BTS On-Time Performance (monthly CSV) + Open-Meteo Archive API
+- **Sources**: BTS On-Time Performance (monthly CSV) + Open-Meteo Archive API + OurAirports (reference dimension)
+- **Geography**: US only. The OurAirports fetch filters to `iso_country = US` on save; BTS is already US-only by source.
 
 ## What we want to learn
 

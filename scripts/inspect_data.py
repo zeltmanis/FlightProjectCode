@@ -58,6 +58,34 @@ def inspect_bts() -> None:
     print(week[keep].head().to_string(index=False))
 
 
+def inspect_airports() -> None:
+    path = RAW / "airports_us.csv"
+    if not path.exists():
+        print(f"Missing: {path}. Run fetch_airports.py first.")
+        return
+
+    banner(f"Airports — {path.name} (US large+medium with IATA only)")
+    df = pd.read_csv(path, low_memory=False)
+    print(f"Rows: {len(df):,}")
+    print(f"Columns: {list(df.columns)}")
+
+    banner("Airports — type breakdown")
+    print(df["type"].value_counts().to_string())
+
+    banner("Airports — null rates on key columns (%)")
+    keep = ["ident", "type", "name", "latitude_deg", "longitude_deg",
+            "iso_country", "municipality", "iata_code", "icao_code"]
+    keep = [c for c in keep if c in df.columns]
+    print(df[keep].isna().mean().mul(100).round(1).to_string())
+
+    banner("Airports — 5 sample rows (the spike's 5 hubs)")
+    hubs = ["ATL", "ORD", "DFW", "DEN", "LAX"]
+    show = ["iata_code", "icao_code", "name", "municipality",
+            "latitude_deg", "longitude_deg"]
+    show = [c for c in show if c in df.columns]
+    print(df[df["iata_code"].isin(hubs)][show].to_string(index=False))
+
+
 def inspect_weather() -> None:
     path = RAW / f"weather_{WEEK_START}_to_{WEEK_END}.csv"
     if not path.exists():
@@ -82,6 +110,7 @@ def inspect_weather() -> None:
 def main() -> None:
     inspect_bts()
     inspect_weather()
+    inspect_airports()
 
 
 if __name__ == "__main__":
