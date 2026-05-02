@@ -113,11 +113,23 @@ comes when we wire the scripts to push directly into Postgres.)
 ## Run order
 
 ```bash
+# Step 1: fetch raw data into data/raw/
 python scripts/fetch_bts.py        # downloads Jan 2023 BTS (~50 MB zip → CSV)
 python scripts/fetch_weather.py    # Open-Meteo hourly for 5 airports × 7 days
 python scripts/fetch_airports.py   # OurAirports → US large+medium with IATA (~180 KB)
+
+# Step 2: load CSVs into the Uganda Postgres staging schema
+#         (requires .env with PGHOST/PGUSER/PGPASSWORD — see .env.example)
+python scripts/load_bts.py         # → staging.flights_raw (~540k rows)
+python scripts/load_weather.py     # → staging.weather_raw (~840 rows)
+python scripts/load_airports.py    # → staging.airports_raw (~872 rows)
+
+# Step 3: sanity check
 python scripts/inspect_data.py     # prints row counts, null rates, samples
 ```
+
+Each `load_*.py` is **idempotent**: it drops and recreates its target
+staging table on every run, then COPYs the CSV in. Re-running is safe.
 
 Each script is **idempotent** — if the output file already exists, it
 prints "Already downloaded" and exits. To re-run from scratch, delete
