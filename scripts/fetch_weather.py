@@ -1,4 +1,11 @@
-"""Pull Open-Meteo hourly archive weather for the configured airports + week."""
+"""Pull Open-Meteo hourly archive weather for the configured airports + week.
+
+Note on `visibility`: the Open-Meteo Archive API silently returns NULLs for
+the `visibility` parameter (it accepts the request, but no historical data
+is published). We use `cloud_cover` and `relative_humidity_2m` as
+proxies — both are well-supported in the historical archive and together
+capture most of what visibility would tell us about flight conditions.
+"""
 
 from pathlib import Path
 import sys
@@ -14,10 +21,11 @@ from config import AIRPORTS, WEEK_START, WEEK_END
 URL = "https://archive-api.open-meteo.com/v1/archive"
 HOURLY = [
     "temperature_2m",
+    "relative_humidity_2m",
     "precipitation",
     "snowfall",
     "windspeed_10m",
-    "visibility",
+    "cloud_cover",
     "weathercode",
 ]
 
