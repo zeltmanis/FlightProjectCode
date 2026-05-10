@@ -21,8 +21,9 @@ BEGIN
     VALUES ('refresh_airlines', 'RUNNING')
     RETURNING job_id INTO v_job_id;
 
-    TRUNCATE airlines;
-
+    -- Upsert from staging — flights references airlines via FK, so
+    -- TRUNCATE would fail. INSERT ... ON CONFLICT updates existing
+    -- rows and adds new ones without wiping the table.
     INSERT INTO airlines (airline_code, name)
     SELECT DISTINCT
         UPPER("Reporting_Airline") AS airline_code,
@@ -49,7 +50,9 @@ BEGIN
         END AS name
     FROM staging.flights_raw
     WHERE "Reporting_Airline" IS NOT NULL
-      AND "Reporting_Airline" <> '';
+      AND "Reporting_Airline" <> ''
+    ON CONFLICT (airline_code) DO UPDATE SET
+        name = EXCLUDED.name;
 
     GET DIAGNOSTICS v_rows = ROW_COUNT;
 

@@ -37,10 +37,10 @@ BEGIN
     VALUES ('refresh_airports', 'RUNNING')
     RETURNING job_id INTO v_job_id;
 
-    -- 2. Replace the airports table contents.
-    TRUNCATE airports;
-
-    -- 3. Re-populate from staging.
+    -- 2. Upsert from staging — INSERT new rows, UPDATE existing ones.
+    --    Using ON CONFLICT instead of TRUNCATE+INSERT so we don't run
+    --    into the FK constraint from flights/routes when re-running.
+    --    Static dim table; we don't need to delete anything.
     INSERT INTO airports (
         airport_code, icao_code, name, city, state, latitude, longitude
     )
@@ -56,7 +56,14 @@ BEGIN
     WHERE iata_code IS NOT NULL
       AND iata_code <> ''
       AND iso_country = 'US'
-      AND type IN ('large_airport', 'medium_airport');
+      AND type IN ('large_airport', 'medium_airport')
+    ON CONFLICT (airport_code) DO UPDATE SET
+        icao_code = EXCLUDED.icao_code,
+        name      = EXCLUDED.name,
+        city      = EXCLUDED.city,
+        state     = EXCLUDED.state,
+        latitude  = EXCLUDED.latitude,
+        longitude = EXCLUDED.longitude;
 
     GET DIAGNOSTICS v_rows = ROW_COUNT;
 
