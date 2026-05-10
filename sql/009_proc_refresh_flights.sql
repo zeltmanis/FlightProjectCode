@@ -40,7 +40,9 @@ BEGIN
     VALUES ('refresh_flights', 'RUNNING')
     RETURNING job_id INTO v_job_id;
 
-    TRUNCATE flights RESTART IDENTITY;
+    -- flights_enriched FKs to flights, so we must truncate both together.
+    -- The user should re-run refresh_flights_enriched() after this.
+    TRUNCATE flights, flights_enriched RESTART IDENTITY;
 
     INSERT INTO flights (
         flight_date, airline_code,
