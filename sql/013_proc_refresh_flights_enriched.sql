@@ -47,7 +47,8 @@ BEGIN
         dep_humidity, dep_cloud_cover, dep_fog_risk, dep_severe_weather,
         arr_temperature, arr_precipitation, arr_snow, arr_wind,
         arr_humidity, arr_cloud_cover, arr_fog_risk, arr_severe_weather,
-        hour_of_day, day_of_week, month, season
+        hour_of_day, day_of_week, month, season,
+        dep_weather_bucket
     )
     SELECT
         f.flight_id,
@@ -99,7 +100,21 @@ BEGIN
              WHEN 3  THEN 'spring' WHEN 4  THEN 'spring' WHEN 5  THEN 'spring'
              WHEN 6  THEN 'summer' WHEN 7  THEN 'summer' WHEN 8  THEN 'summer'
              WHEN 9  THEN 'autumn' WHEN 10 THEN 'autumn' WHEN 11 THEN 'autumn'
-        END                                              AS season
+        END                                              AS season,
+
+        -- Departure weather bucket. Order matters: thunderstorm wins
+        -- over rain, snow over fog, etc. WMO weather codes 95/96/99
+        -- are thunderstorm.
+        CASE
+            WHEN w_dep.airport_code  IS NULL              THEN NULL
+            WHEN w_dep.weather_code  IN (95, 96, 99)      THEN 'thunderstorm'
+            WHEN w_dep.snowfall_cm   > 0                  THEN 'snow'
+            WHEN w_dep.precipitation_mm >= 2              THEN 'heavy_rain'
+            WHEN w_dep.precipitation_mm >  0              THEN 'light_rain'
+            WHEN w_dep.relative_humidity > 90
+             AND w_dep.temperature_c BETWEEN -2 AND 5     THEN 'fog'
+            ELSE 'clear'
+        END                                              AS dep_weather_bucket
 
     FROM flights f
     LEFT JOIN weather_hourly w_dep
