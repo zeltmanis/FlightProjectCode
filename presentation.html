@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<!-- Capstone presentation — Databases & Project Management
+     Built incrementally; same TUM-blue palette as Algorithms capstone -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Predicting US Flight Delays — Databases & PM Capstone</title>
+<style>
+:root{
+  --sky-50:  #f5fafe;
+  --sky-100: #e6f1fa;
+  --sky-200: #cfe1f2;
+  --sky-300: #a9c8e4;
+  --blue-600:#0065bd;
+  --blue-700:#004a8c;
+  --blue-100:#dceaf6;
+
+  --ink-900:#111418; --ink-700:#2b3137; --ink-500:#5c6670;
+  --amber-100:#fff3c8; --amber-300:#ffd977;
+  --red-600:#d14646;
+  --green-600:#1e8a4c;
+  --orange-500:#e8822a;
+
+  --radius-lg:16px; --radius-md:12px;
+  --shadow-sm:0 2px 8px rgba(0,0,0,.06);
+  --shadow-md:0 6px 20px rgba(0,30,80,.08);
+  --shadow-lg:0 12px 28px rgba(0,30,80,.10);
+  --h1:clamp(34px,4vw,58px); --h2:clamp(26px,2.8vw,38px); --h3:clamp(18px,2vw,24px);
+  --body:17px; --small:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  background:var(--sky-50); color:var(--ink-900); overflow-x:hidden; overflow-y:auto;
+}
+.presentation{width:100%;min-height:100vh;position:relative;}
+.slide{
+  width:100%;min-height:100vh;display:none;
+  padding:clamp(28px,5vw,72px);
+  background:var(--sky-50);position:relative;
+}
+.slide.active{display:flex;flex-direction:column;animation:slideIn 400ms ease-out;}
+@keyframes slideIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+.center-content{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
+
+.slide-header{
+  margin-bottom:clamp(20px,3.5vw,36px);
+  background:var(--sky-100);border:1px solid var(--sky-200);
+  border-radius:14px;padding:14px 20px;
+}
+.slide-header h2{font-size:var(--h2);font-weight:700;color:var(--ink-900);}
+.slide-header .subtitle{font-size:15px;color:var(--ink-500);margin-top:4px;}
+
+h1{font-size:var(--h1);font-weight:800;color:var(--ink-900);letter-spacing:-.02em;}
+h2{font-size:var(--h2);font-weight:700;color:var(--ink-900);}
+h3{font-size:var(--h3);font-weight:700;color:var(--ink-700);}
+
+.content{flex:1;overflow:visible;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:clamp(14px,2.5vw,36px);margin-top:10px;}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:clamp(12px,2vw,28px);margin-top:10px;}
+@media(max-width:1024px){.two-col,.three-col{grid-template-columns:1fr;}}
+
+.box{
+  background:var(--sky-100);padding:clamp(14px,2vw,22px);
+  border-radius:var(--radius-lg);margin-bottom:16px;
+  border:1px solid var(--sky-200);box-shadow:var(--shadow-sm);
+  transition:transform .25s,box-shadow .25s;
+}
+.box:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);}
+.box h3{margin-top:0;color:var(--ink-700);margin-bottom:10px;}
+.box.todo{background:#fff8ed;border-style:dashed;opacity:.95;}
+.box.todo h3{color:var(--orange-500);}
+.box.todo h3:before{content:"TODO  ";color:var(--orange-500);font-size:11px;letter-spacing:.1em;}
+
+ul{list-style:none;padding-left:0;}
+li{padding:6px 0 6px 22px;position:relative;font-size:var(--body);line-height:1.55;color:var(--ink-900);}
+li:before{content:"•";position:absolute;left:0;top:5px;color:var(--blue-600);font-weight:900;}
+
+a{color:var(--blue-600);text-decoration:none;border-bottom:1px dotted var(--blue-600);}
+a:hover{color:var(--blue-700);border-bottom-style:solid;}
+code{font-family:'SF Mono',Consolas,Monaco,monospace;font-size:0.92em;background:var(--sky-100);padding:1px 6px;border-radius:5px;color:var(--blue-700);}
+
+pre{
+  background:var(--ink-900);color:#e6f1fa;padding:18px;border-radius:var(--radius-md);
+  font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13px;line-height:1.55;
+  overflow-x:auto;
+}
+pre .kw{color:#7ec0ff;font-weight:700;}
+pre .str{color:#ffd977;}
+pre .com{color:#8aa1b2;font-style:italic;}
+
+.highlight{background:var(--amber-100);padding:2px 10px;border-radius:999px;color:var(--ink-900);font-weight:600;border:1px solid #ffe8a3;}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:var(--small);font-weight:700;}
+.badge-blue{background:var(--blue-100);color:var(--blue-700);border:1px solid var(--sky-200);}
+.badge-amber{background:#fff0d6;color:#9a6221;border:1px solid #ffd8a3;}
+.badge-grey{background:#f0f0f0;color:#555;border:1px solid #ddd;}
+.badge-green{background:#dff5e6;color:var(--green-600);border:1px solid #b6e3c4;}
+
+.metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(10px,1.6vw,18px);margin-top:14px;}
+.metric-card{
+  background:white;border:1px solid var(--sky-200);padding:18px;
+  border-radius:var(--radius-md);box-shadow:var(--shadow-sm);text-align:center;
+}
+.metric-num{font-size:clamp(24px,2.6vw,36px);font-weight:800;color:var(--blue-700);line-height:1;}
+.metric-label{font-size:12px;color:var(--ink-500);margin-top:6px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+
+.navigation{position:fixed;bottom:24px;right:24px;display:flex;gap:10px;z-index:1000;}
+.nav-btn{
+  background:var(--blue-600);color:#fff;border:none;padding:11px 20px;
+  border-radius:999px;cursor:pointer;font-size:15px;font-weight:700;
+  transition:transform .2s,box-shadow .2s,background .2s;
+  box-shadow:0 6px 16px rgba(0,101,189,.28);
+}
+.nav-btn:hover{background:var(--blue-700);transform:translateY(-2px);box-shadow:0 10px 20px rgba(0,74,140,.32);}
+.nav-btn:disabled{background:#c8d3df;cursor:not-allowed;box-shadow:none;}
+.slide-counter{position:fixed;bottom:28px;left:28px;color:var(--ink-500);font-size:14px;z-index:1000;}
+.logo{position:absolute;top:18px;right:36px;font-size:22px;font-weight:800;color:var(--blue-700);letter-spacing:-.01em;}
+
+.question-card{
+  margin-top:36px;max-width:760px;
+  background:white;border:1px solid var(--sky-200);
+  border-left:4px solid var(--blue-600);
+  border-radius:var(--radius-md);padding:18px 24px;
+  box-shadow:var(--shadow-sm);
+}
+.question-card .label{font-size:12px;color:var(--blue-700);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+.question-card .q{font-size:18px;font-style:italic;color:var(--ink-900);line-height:1.5;}
+
+table{width:100%;border-collapse:collapse;margin:14px 0;background:white;border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm);}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--sky-200);font-size:14px;}
+th{background:var(--sky-100);color:var(--ink-700);font-weight:700;}
+tr:last-child td{border-bottom:none;}
+</style>
+</head>
+<body>
+<div class="presentation">
+
+  <!-- ===========================================================
+       SLIDE 1 — Title
+       =========================================================== -->
+  <div class="slide active">
+    <div class="logo">Capstone</div>
+    <div class="center-content">
+      <h1>Predicting US<br>Flight Delays</h1>
+      <p style="font-size:clamp(18px,2vw,24px);color:var(--ink-500);margin-top:18px;">
+        A PostgreSQL capstone — Databases &amp; Project Management
+      </p>
+      <div style="font-size:18px;color:var(--ink-700);margin-top:48px;line-height:1.7;">
+        <p><strong>Edgar Z</strong> &nbsp;·&nbsp; Tim &nbsp;·&nbsp; Endrit &nbsp;·&nbsp; Egon</p>
+        <p style="color:var(--ink-500);margin-top:6px;">02 Semester</p>
+      </div>
+
+      <div class="question-card">
+        <div class="label">Research question</div>
+        <p class="q">Given two years of US flight history and matching weather,
+        can we build a simple, fully explainable delay predictor for the third
+        year &mdash; using only SQL?</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 2 — Data sources
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Data sources</h2>
+      <div class="subtitle">Three independent feeds. All free, all public.</div>
+    </div>
+    <div class="content">
+      <div class="three-col">
+        <div class="box">
+          <h3>BTS On-Time Performance</h3>
+          <ul>
+            <li>Every US domestic flight, 2022–2024</li>
+            <li>Scheduled + actual times</li>
+            <li>Delays + cancellations</li>
+            <li>Carrier, origin, destination</li>
+          </ul>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            Pre-cleaned in the parallel Algorithms project (110 → 14 columns).
+            Still loaded as TEXT into staging.
+          </p>
+        </div>
+        <div class="box">
+          <h3>Open-Meteo Archive</h3>
+          <ul>
+            <li>Hourly historical weather</li>
+            <li>Temperature, precipitation, snow, wind</li>
+            <li>Cloud cover, humidity</li>
+            <li>Top-10 airports, 2022–2024</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>OurAirports</h3>
+          <ul>
+            <li>IATA + ICAO codes</li>
+            <li>Name, city, lat/lon</li>
+            <li>Static reference dimension</li>
+            <li>US large + medium with IATA only</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="box" style="margin-top:20px;">
+        <h3>Scope locked: top 10 airports by volume</h3>
+        <p>
+          <span class="badge badge-blue">ATL</span>
+          <span class="badge badge-blue">DFW</span>
+          <span class="badge badge-blue">DEN</span>
+          <span class="badge badge-blue">ORD</span>
+          <span class="badge badge-blue">CLT</span>
+          <span class="badge badge-blue">LAX</span>
+          <span class="badge badge-blue">LAS</span>
+          <span class="badge badge-blue">PHX</span>
+          <span class="badge badge-blue">SEA</span>
+          <span class="badge badge-amber">MCO</span>
+        </p>
+        <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+          MCO swapped in for LGA: adds a hurricane-exposed Florida hub.
+          We further restrict to flights where <em>both</em> endpoints are in this set
+          — a clean 10×9 = 90-route network.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 3 — Architecture
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Architecture &mdash; ELT, four layers</h2>
+      <div class="subtitle">Python fetches and loads. PostgreSQL does everything else.</div>
+    </div>
+    <div class="content">
+      <pre><span class="com">[ Python ]                          [ PostgreSQL — Uganda DB ]</span>
+
+  fetch_*.py     <span class="kw">COPY</span> &#9658;  staging.flights_raw      <span class="com">┐  raw, all TEXT</span>
+                                  staging.weather_raw      <span class="com">│</span>
+                                  staging.airports_raw     <span class="com">┘</span>
+                                          │
+                                          │  refresh_*()
+                                          ▼
+                            airports / airlines / weather_hourly / flights
+                                          │
+                                          │  refresh_flights_enriched()
+                                          ▼
+                            flights_enriched     <span class="com">← weather + features per flight</span>
+                                          │
+                                          │  refresh_model_route_hour_weather()
+                                          ▼
+                            model_route_hour_weather    <span class="com">← THE MODEL</span>
+                                          │
+                                          │  predict_flights()
+                                          ▼
+                            predictions   ───▶   validate_predictions()  ───▶  validation_results
+</pre>
+      <p style="margin-top:12px;font-size:14px;color:var(--ink-500);">
+        Why ELT not ETL? <span class="highlight">The database has the heavy machinery</span>
+        — indexes, FKs, set-based ops. Transforms in SQL are version-controlled,
+        replayable, and debuggable in DataGrip.
+      </p>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 4 — Cleaning step (built; demo content)
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Cleaning &mdash; staging to typed</h2>
+      <div class="subtitle">All text in. Validated, typed, FK-enforced out.</div>
+    </div>
+    <div class="content">
+      <div class="two-col">
+        <div class="box">
+          <h3>Staging (14 TEXT columns)</h3>
+<pre>flight_date         <span class="str">"2023-01-02"</span>
+reporting_airline   <span class="str">"9E"</span>
+origin              <span class="str">"ATL"</span>
+dest                <span class="str">"LGA"</span>
+crs_dep_time        <span class="str">"800"</span>
+dep_time            <span class="str">"757.0"</span>
+cancelled           <span class="str">"0.0"</span>
+cancellation_code   <span class="str">""</span>
+arr_delay_minutes   <span class="str">"0.0"</span>
+weather_delay       <span class="str">""</span></pre>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            Empty strings instead of NULL. Floats for times. No type safety.
+          </p>
+        </div>
+        <div class="box">
+          <h3>Cleaned (typed + validated)</h3>
+<pre>flight_date           <span class="kw">DATE</span>
+airline_code          <span class="kw">VARCHAR(10) FK</span>
+origin_airport_code   <span class="kw">CHAR(3)     FK</span>
+dest_airport_code     <span class="kw">CHAR(3)     FK</span>
+scheduled_departure   <span class="kw">TIMESTAMPTZ</span>
+actual_departure      <span class="kw">TIMESTAMPTZ</span>
+cancelled             <span class="kw">BOOLEAN     NOT NULL</span>
+cancellation_code     <span class="kw">CHAR(1)     CHECK A/B/C/D</span>
+arr_delay_minutes     <span class="kw">DECIMAL</span>
+arr_del15             <span class="kw">BOOLEAN</span>   <span class="com">← derived</span></pre>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            All transforms in <code>refresh_flights()</code>.
+            Self-logged in <code>job_log</code>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 5 — Enrichment (built)
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Enrichment &mdash; joining weather to flights</h2>
+      <div class="subtitle">Two JOINs against weather_hourly: origin and destination.</div>
+    </div>
+    <div class="content">
+      <div class="box todo">
+        <h3>To be expanded once 3-year load + weather refresh are complete</h3>
+        <p>Cover: the two weather joins, derived features
+          (<code>weather_bucket</code>, <code>fog_risk</code>, <code>hour_of_day</code>),
+          and an example row from <code>flights_enriched</code>.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 6 — Model design
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>The model is a table</h2>
+      <div class="subtitle">No Python ML. No opaque artefacts. One SQL row per prediction rule.</div>
+    </div>
+    <div class="content">
+      <div class="box">
+        <h3>model_route_hour_weather &mdash; rich aggregates per bucket</h3>
+<pre><span class="kw">CREATE TABLE</span> model_route_hour_weather (
+    origin, dest, hour_of_day, weather_bucket,                <span class="com">-- the bucket keys</span>
+
+    avg_delay, median_delay, delay_p90,                       <span class="com">-- magnitude (continuous)</span>
+    pct_late, pct_cancelled,                                  <span class="com">-- likelihood</span>
+    pct_short, pct_average, pct_long, pct_extreme,            <span class="com">-- magnitude distribution</span>
+    sample_size,
+    <span class="kw">PRIMARY KEY</span> (origin, dest, hour_of_day, weather_bucket)
+);</pre>
+      </div>
+      <div class="two-col">
+        <div class="box">
+          <h3>The two output dimensions</h3>
+          <ul>
+            <li><strong>Late-likelihood</strong>: low &lt;20%, avg 20-50%, high &ge;50%</li>
+            <li><strong>Magnitude</strong>: short &le;30m, avg &le;3h, long &le;8h, extreme, cancelled</li>
+            <li><code>sample_size &lt; 10</code> &rarr; "no data, can't predict"</li>
+            <li>Every prediction traceable back to one row of the model</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>One training query &mdash; all 11 aggregates</h3>
+<pre><span class="kw">SELECT</span>
+  origin, dest, hour_of_day, weather_bucket,
+  <span class="kw">AVG</span>(arr_delay_minutes),
+  <span class="kw">PERCENTILE_CONT</span>(0.5) <span class="kw">WITHIN GROUP</span> (…),
+  <span class="kw">COUNT</span>(*) <span class="kw">FILTER</span> (<span class="kw">WHERE</span> arr_delay &gt; 15)
+    / <span class="kw">COUNT</span>(*)                <span class="com">-- pct_late</span>
+  …
+<span class="kw">FROM</span> flights_enriched
+<span class="kw">WHERE EXTRACT</span>(year FROM flight_date) <span class="kw">IN</span> (2022, 2023)
+<span class="kw">GROUP BY</span> 1, 2, 3, 4
+<span class="kw">HAVING COUNT</span>(*) &gt;= 10;</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 7 — Prediction step (TODO)
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Predicting 2024 &mdash; one JOIN</h2>
+      <div class="subtitle">Future flights × model → predictions.</div>
+    </div>
+    <div class="content">
+      <div class="box todo">
+        <h3>To be filled once predict_flights() is implemented</h3>
+        <p>Cover: the LEFT JOIN against the model; what happens when the bucket
+          is missing (NULL prediction, "no historical analogue"); an example row
+          from <code>predictions</code> with its <code>explanation</code> column.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 8 — Validation (TODO)
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Validation &mdash; how good is it?</h2>
+      <div class="subtitle">Compare predictions to actual 2024 delays.</div>
+    </div>
+    <div class="content">
+      <div class="box todo">
+        <h3>To be filled once validate_predictions() runs</h3>
+        <p>Metrics planned: mean absolute error (MAE); accuracy within ±5/±10/±15
+          minutes; per-weather-bucket breakdown to identify which conditions we
+          predict well and which we don't.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 9 — Demo output
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Demo &mdash; predict_for_airport()</h2>
+      <div class="subtitle">The thing a real human would ask the database.</div>
+    </div>
+    <div class="content">
+      <pre><span class="kw">CALL</span> predict_for_airport(<span class="str">'LAX'</span>, <span class="kw">DATE</span> <span class="str">'2024-07-15'</span>);
+
+LAX departures on 2024-07-15  (forecast: thunderstorm 14:00-18:00)
+
+flight  route     dep    late_likelihood   most_likely_delay   exp     sample  explanation
+─────────────────────────────────────────────────────────────────────────────────────────────────
+DL142   LAX→ATL   14:30  <span class="str">high</span> (72%)        <span class="str">long</span> (~180m)        +180m   287     thunderstorm × 14h: 72% late, median 180m
+WN428   LAX→LAS   16:00  <span class="str">high</span> (75%)        average (~80m)      +80m    198     thunderstorm × 16h: many short delays
+UA306   LAX→ORD   15:15  <span class="str">high</span> (68%)        <span class="str">long</span> (~150m)        +150m   223     thunderstorm × 15h: 68% late
+AA204   LAX→DFW   11:30  average (38%)     average (~50m)      +50m    412     clear × 11h: 38% late, mild
+DL101   LAX→SEA   07:15  <span class="com">low</span> (12%)         short (~10m)        +10m    531     clear × 7h: almost always on-time
+B6217   LAX→JFK   23:50  —                 —                   —       4       <span class="com">no data, can't predict (n &lt; 10)</span>
+…</pre>
+      <p style="margin-top:14px;font-size:14px;color:var(--ink-500);">
+        Two categorical labels per flight &mdash; <strong>late-likelihood</strong>
+        (low/avg/high) and <strong>magnitude</strong> (short/avg/long/extreme/cancelled)
+        &mdash; plus the raw minutes and a sample size.
+        <span class="highlight">When history is too thin, we say so.</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 10 — Resilience / failed-job story (TODO)
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Resilience &mdash; the job_log audit trail</h2>
+      <div class="subtitle">Every refresh self-logs. Failures are first-class data.</div>
+    </div>
+    <div class="content">
+      <div class="box todo">
+        <h3>To be filled once the failed-job demo is staged</h3>
+        <p>Cover: <code>job_log</code> schema; what gets logged on success vs. failure;
+          live demo of inducing a failure (FK violation), seeing the FAILED row,
+          fixing, re-running, and watching the next row succeed.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 11 — pgTAP tests (TODO)
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Testing &mdash; pgTAP</h2>
+      <div class="subtitle">Database-level unit tests; capstone requirement.</div>
+    </div>
+    <div class="content">
+      <div class="box todo">
+        <h3>To be filled once pgTAP suite is written</h3>
+        <p>Tests planned: (a) schema constraints — NOT NULLs, FKs, CHECKs are
+          in place; (b) procedure post-conditions — no orphan FKs after a refresh;
+          (c) prediction logic — for a hand-crafted training set with known
+          averages, <code>predict_flights()</code> produces those exact averages.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 12 — Wrap
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Wrap &mdash; what we built, what we'd extend</h2>
+    </div>
+    <div class="content">
+      <div class="two-col">
+        <div class="box">
+          <h3>What we built</h3>
+          <ul>
+            <li>End-to-end PostgreSQL pipeline, 3 years × 10 airports</li>
+            <li>Explainable prediction model — entirely in SQL</li>
+            <li>Per-job audit trail with first-class failure handling</li>
+            <li>pgTAP test suite for schemas + procedures + prediction logic</li>
+            <li>Live demo: <code>predict_for_airport(airport, date)</code></li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>What we'd extend</h3>
+          <ul>
+            <li>Scale to all top-50 airports — same code, just more data</li>
+            <li>Add carrier as a 5th grouping key for finer predictions</li>
+            <li>Compare against a non-SQL baseline (linear regression, kNN)</li>
+            <li>Per-route per-month seasonality bucket</li>
+            <li>Real-time forecast feed instead of replaying 2024</li>
+          </ul>
+        </div>
+      </div>
+      <p style="text-align:center;margin-top:36px;font-size:18px;color:var(--ink-500);">
+        Thank you. Questions?
+      </p>
+    </div>
+  </div>
+
+</div><!-- /presentation -->
+
+<!-- Navigation -->
+<div class="navigation">
+  <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)" disabled>← Prev</button>
+  <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">Next →</button>
+</div>
+<div class="slide-counter" id="slideCounter">1 / 12</div>
+
+<script>
+let current = 0;
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+document.getElementById('slideCounter').textContent = '1 / ' + total;
+
+function changeSlide(dir) {
+  slides[current].classList.remove('active');
+  current = Math.max(0, Math.min(total - 1, current + dir));
+  slides[current].classList.add('active');
+  document.getElementById('slideCounter').textContent = (current + 1) + ' / ' + total;
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === total - 1;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') changeSlide(1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   changeSlide(-1);
+});
+</script>
+</body>
+</html>
