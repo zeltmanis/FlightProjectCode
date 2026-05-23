@@ -24,10 +24,12 @@ BEGIN
     -- Upsert from staging — flights references airlines via FK, so
     -- TRUNCATE would fail. INSERT ... ON CONFLICT updates existing
     -- rows and adds new ones without wiping the table.
+    -- staging.flights_raw uses snake_case columns since the 2026-05-23
+    -- scale-up (pre-cleaned 3-year CSVs from the Algorithms project).
     INSERT INTO airlines (airline_code, name)
     SELECT DISTINCT
-        UPPER("Reporting_Airline") AS airline_code,
-        CASE UPPER("Reporting_Airline")
+        UPPER(reporting_airline) AS airline_code,
+        CASE UPPER(reporting_airline)
             WHEN 'AA' THEN 'American Airlines'
             WHEN 'DL' THEN 'Delta Air Lines'
             WHEN 'UA' THEN 'United Airlines'
@@ -49,8 +51,8 @@ BEGIN
             ELSE NULL
         END AS name
     FROM staging.flights_raw
-    WHERE "Reporting_Airline" IS NOT NULL
-      AND "Reporting_Airline" <> ''
+    WHERE reporting_airline IS NOT NULL
+      AND reporting_airline <> ''
     ON CONFLICT (airline_code) DO UPDATE SET
         name = EXCLUDED.name;
 

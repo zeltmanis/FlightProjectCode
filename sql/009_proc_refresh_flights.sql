@@ -5,26 +5,33 @@
 -- cleaning procedure in the project.
 --
 -- What it does:
---   - Casts ~25 columns from TEXT to proper types
+--   - Casts 14 columns from TEXT to proper types
 --   - Builds 4 TIMESTAMPTZs from BTS date + HHMM via
 --     hhmm_to_ts(); these are the columns that join to
 --     weather_hourly
 --   - Drops rows whose origin/dest/airline aren't in our
 --     dimension tables (filter, not FK violation)
 --   - Normalises empty strings to NULL throughout
---   - Translates '0.00' / '1.00' BTS booleans to BOOLEAN
+--   - Translates '0.0' / '1.0' booleans to BOOLEAN
+--   - Derives dep_del15 / arr_del15 from delay minutes
+--     (BTS originally carried these as columns; cleaned
+--     CSVs dropped them, so we apply the OTP-15 rule:
+--     delay > 15 minutes)
+--
+-- Columns NOT in the cleaned source (set NULL):
+--   - distance_miles, carrier_delay, security_delay,
+--     late_aircraft_delay — these were pruned during
+--     the algorithms-project cleaning step
 --
 -- Edge-case decisions baked in:
 --   - DepTime/ArrTime empty for cancelled flights
 --     → actual_departure / actual_arrival = NULL
 --   - CancellationCode '' for non-cancelled flights
 --     → cancellation_code = NULL
---   - Delay reason fields NULL when there is no delay
---     → carried as NULL (not 0)
 --
--- Note: this runs over ~540k rows for one month, so the
--- procedure can take ~30s. The TRUNCATE+INSERT is in a
--- single transaction, so a failure rolls back cleanly.
+-- Note: this runs over ~1.4M rows for the full 3-year
+-- top-10 scale-up. The TRUNCATE+INSERT is in a single
+-- transaction, so a failure rolls back cleanly.
 --
 -- Usage:
 --   CALL refresh_flights();
@@ -57,51 +64,60 @@ BEGIN
         carrier_delay, weather_delay, nas_delay, security_delay, late_aircraft_delay
     )
     SELECT
-        f."FlightDate"::DATE                                AS flight_date,
-        UPPER(f."Reporting_Airline")                        AS airline_code,
-        UPPER(f."Origin")                                   AS origin_airport_code,
-        UPPER(f."Dest")                                     AS dest_airport_code,
+        f.flight_date::DATE                                 AS flight_date,
+        UPPER(f.reporting_airline)                          AS airline_code,
+        UPPER(f.origin)                                     AS origin_airport_code,
+        UPPER(f.dest)                                       AS dest_airport_code,
 
-        hhmm_to_ts(f."FlightDate", f."CRSDepTime")          AS scheduled_departure,
-        hhmm_to_ts(f."FlightDate", f."DepTime")             AS actual_departure,
-        hhmm_to_ts(f."FlightDate", f."CRSArrTime")          AS scheduled_arrival,
-        hhmm_to_ts(f."FlightDate", f."ArrTime")             AS actual_arrival,
+        -- 4 TIMESTAMPTZs from flight_date + HHMM. hhmm_to_ts() handles
+        -- the unpadded form ("800" → "0800") and the float-text form
+        -- ("757.0" → strips ".0", LPADs to 4 digits).
+        hhmm_to_ts(f.flight_date, f.crs_dep_time)           AS scheduled_departure,
+        hhmm_to_ts(f.flight_date, f.dep_time)               AS actual_departure,
+        hhmm_to_ts(f.flight_date, f.crs_arr_time)           AS scheduled_arrival,
+        hhmm_to_ts(f.flight_date, f.arr_time)               AS actual_arrival,
 
-        NULLIF(SPLIT_PART(f."CRSDepTime", '.', 1), '')::SMALLINT  AS scheduled_dep_time,
-        NULLIF(SPLIT_PART(f."DepTime",    '.', 1), '')::SMALLINT  AS actual_dep_time,
-        NULLIF(SPLIT_PART(f."CRSArrTime", '.', 1), '')::SMALLINT  AS scheduled_arr_time,
-        NULLIF(SPLIT_PART(f."ArrTime",    '.', 1), '')::SMALLINT  AS actual_arr_time,
+        -- Raw HHMM as SMALLINT (kept for BTS fidelity). SPLIT_PART
+        -- drops the ".0" if present.
+        NULLIF(SPLIT_PART(f.crs_dep_time, '.', 1), '')::SMALLINT  AS scheduled_dep_time,
+        NULLIF(SPLIT_PART(f.dep_time,     '.', 1), '')::SMALLINT  AS actual_dep_time,
+        NULLIF(SPLIT_PART(f.crs_arr_time, '.', 1), '')::SMALLINT  AS scheduled_arr_time,
+        NULLIF(SPLIT_PART(f.arr_time,     '.', 1), '')::SMALLINT  AS actual_arr_time,
 
-        NULLIF(f."DepDelayMinutes", '')::DECIMAL            AS dep_delay_minutes,
-        CASE NULLIF(f."DepDel15", '')
-             WHEN '1.00' THEN TRUE
-             WHEN '0.00' THEN FALSE
-             ELSE NULL END                                  AS dep_del15,
+        NULLIF(f.dep_delay_minutes, '')::DECIMAL            AS dep_delay_minutes,
+        -- Derived: OTP-15 rule. NULL when there's no delay value at all
+        -- (e.g. cancelled flight with no DepDelayMinutes).
+        CASE
+            WHEN NULLIF(f.dep_delay_minutes, '') IS NULL THEN NULL
+            ELSE f.dep_delay_minutes::DECIMAL > 15
+        END                                                 AS dep_del15,
 
-        NULLIF(f."ArrDelayMinutes", '')::DECIMAL            AS arr_delay_minutes,
-        CASE NULLIF(f."ArrDel15", '')
-             WHEN '1.00' THEN TRUE
-             WHEN '0.00' THEN FALSE
-             ELSE NULL END                                  AS arr_del15,
+        NULLIF(f.arr_delay_minutes, '')::DECIMAL            AS arr_delay_minutes,
+        CASE
+            WHEN NULLIF(f.arr_delay_minutes, '') IS NULL THEN NULL
+            ELSE f.arr_delay_minutes::DECIMAL > 15
+        END                                                 AS arr_del15,
 
-        CASE NULLIF(f."Cancelled", '')
-             WHEN '1.00' THEN TRUE
-             WHEN '0.00' THEN FALSE
+        -- Cleaned CSVs use "1.0" / "0.0" (not "1.00" / "0.00") because they
+        -- went through pandas' default float formatting.
+        CASE NULLIF(f.cancelled, '')
+             WHEN '1.0' THEN TRUE
+             WHEN '0.0' THEN FALSE
              ELSE FALSE END                                 AS cancelled,
-        NULLIF(f."CancellationCode", '')::CHAR(1)           AS cancellation_code,
-        NULLIF(f."Distance", '')::DECIMAL                   AS distance_miles,
+        NULLIF(f.cancellation_code, '')::CHAR(1)            AS cancellation_code,
+        NULL::DECIMAL                                       AS distance_miles,        -- not in cleaned source
 
-        NULLIF(f."CarrierDelay",      '')::DECIMAL          AS carrier_delay,
-        NULLIF(f."WeatherDelay",      '')::DECIMAL          AS weather_delay,
-        NULLIF(f."NASDelay",          '')::DECIMAL          AS nas_delay,
-        NULLIF(f."SecurityDelay",     '')::DECIMAL          AS security_delay,
-        NULLIF(f."LateAircraftDelay", '')::DECIMAL          AS late_aircraft_delay
+        NULL::DECIMAL                                       AS carrier_delay,         -- not in cleaned source
+        NULLIF(f.weather_delay, '')::DECIMAL                AS weather_delay,
+        NULLIF(f.nas_delay,     '')::DECIMAL                AS nas_delay,
+        NULL::DECIMAL                                       AS security_delay,        -- not in cleaned source
+        NULL::DECIMAL                                       AS late_aircraft_delay    -- not in cleaned source
     FROM staging.flights_raw f
-    INNER JOIN airports a_origin ON a_origin.airport_code = UPPER(f."Origin")
-    INNER JOIN airports a_dest   ON a_dest.airport_code   = UPPER(f."Dest")
-    INNER JOIN airlines al       ON al.airline_code       = UPPER(f."Reporting_Airline")
-    WHERE f."FlightDate" IS NOT NULL
-      AND f."FlightDate" <> '';
+    INNER JOIN airports a_origin ON a_origin.airport_code = UPPER(f.origin)
+    INNER JOIN airports a_dest   ON a_dest.airport_code   = UPPER(f.dest)
+    INNER JOIN airlines al       ON al.airline_code       = UPPER(f.reporting_airline)
+    WHERE f.flight_date IS NOT NULL
+      AND f.flight_date <> '';
 
     GET DIAGNOSTICS v_rows = ROW_COUNT;
 
