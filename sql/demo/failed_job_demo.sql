@@ -1,47 +1,55 @@
 -- =========================================================
--- failed_job_demo.sql -- the resilience story (quick version)
+-- failed_job_demo.sql -- the resilience story
 --
--- Demonstrates clean transactional rollback using
--- refresh_weather_hourly(), which is fast (~3 sec) and has
--- no downstream FK dependencies. The whole demo runs in
--- ~10 seconds total -- perfect for live presentation.
+-- Uses the demo procedure demo_refresh_weather_hourly() which
+-- persists FAILED rows in job_log via the audited-failure
+-- pattern (see sql/023_proc_demo_refresh_weather_hourly.sql).
+-- The demo procedure mirrors refresh_weather_hourly() in
+-- behaviour but commits its audit row outside the work
+-- transaction.
 --
--- The pattern is **identical for every refresh_* procedure**
--- in the project. We use refresh_weather_hourly() because:
---   - it's fast (no audience downtime)
---   - it doesn't cascade-truncate anything, so the demo
---     leaves the prediction layer untouched
+-- IMPORTANT -- BEFORE YOU RUN:
 --
--- Run line by line in DataGrip. Do NOT execute as a batch
--- -- the point is the audience sees each step + its result.
+--   DataGrip users: switch the SQL editor's transaction
+--   mode from "Tx: Manual" to "Tx: Auto" (the indicator
+--   in the toolbar above the editor). The procedure uses
+--   in-body COMMIT/RAISE; PG rejects this if the caller
+--   has an explicit outer transaction open.
 --
--- Storyboard (~10 sec of demo):
+--   psql/Python users: default autocommit is OK; nothing
+--   to change.
+--
+-- Run line by line in DataGrip. The whole demo runs in
+-- ~10 seconds.
+--
+-- Storyboard:
 --   1. Show the audit trail before anything bad happens
---   2. Introduce dirty data -- one staging row with a corrupt
---      timestamp (simulating real-world ETL: upstream
---      fat-fingered a value)
---   3. Run refresh_weather_hourly() -- the TIMESTAMP cast
---      fails. The Postgres error message points at the bad
---      data
---   4. Prove nothing was corrupted -- weather_hourly is
---      unchanged; the failed call left no trace in job_log
---      (clean transactional rollback)
+--   2. Introduce dirty data -- one staging row with a
+--      corrupt timestamp (simulating real-world ETL)
+--   3. Run demo_refresh_weather_hourly() -- the TIMESTAMP
+--      cast fails. Two things happen: (a) a FAILED row
+--      lands in job_log with the error message; (b) PG
+--      raises the exception so DataGrip shows the error
+--   4. Prove the work was rolled back -- weather_hourly
+--      is unchanged. But the FAILED row in job_log is
+--      now visible
 --   5. Fix the bad row
---   6. Re-run -- now succeeds; fresh OK row in job_log
+--   6. Re-run -- succeeds; fresh OK row in job_log
 -- =========================================================
 
 
--- 1. Baseline: what does the audit trail look like right now?
+-- 1. Baseline: audit trail before the demo
 SELECT job_name, status, rows_processed,
-       end_time - start_time AS duration
+       end_time - start_time AS duration,
+       LEFT(COALESCE(errors, ''), 50) AS errors
 FROM job_log
+WHERE job_name IN ('demo_refresh_weather_hourly',
+                   'refresh_weather_hourly')
 ORDER BY start_time DESC
 LIMIT 5;
 
 
--- 2. Introduce dirty data -- one row with a corrupt timestamp.
---    Real-world ETL hits this all the time: an upstream
---    extract truncates a value or hits an encoding bug.
+-- 2. Introduce dirty data -- one row with a corrupt timestamp
 INSERT INTO staging.weather_raw (
     airport_code, time,
     temperature_2m, relative_humidity_2m,
@@ -54,60 +62,60 @@ INSERT INTO staging.weather_raw (
     '20', '0'
 );
 
--- Confirm the bad row landed in staging.
+-- Confirm bad row is in staging
 SELECT airport_code, time, temperature_2m
 FROM staging.weather_raw
 WHERE time = 'CORRUPT_TIMESTAMP';
 
 
--- 3. Run the cleaning procedure -- the CAST(time AS TIMESTAMP)
---    will fail when it hits this row.
-CALL refresh_weather_hourly();
+-- 3. Run the demo procedure -- expect an ERROR AND a FAILED
+--    row in job_log. The CAST(time AS TIMESTAMP) will fail
+--    on the corrupt row; the procedure's EXCEPTION handler
+--    captures the error and writes a FAILED row via the
+--    audited-failure pattern (independent of the work tx).
+CALL demo_refresh_weather_hourly();
 -- Expected: ERROR: invalid input syntax for type timestamp: "CORRUPT_TIMESTAMP"
+-- Expected: HINT: See job_log table for the FAILED row.
 
 
--- 4. Prove nothing was corrupted downstream. The procedure
---    did TRUNCATE weather_hourly FIRST and then failed
---    during INSERT -- but the WHOLE call is one transaction,
---    so the TRUNCATE rolled back too. weather_hourly still
---    has every row it had before, AND job_log has no new
---    entry because the audit INSERT rolled back with the
---    rest of the transaction. This is *correct*
---    transactional behaviour: failures leave no partial
---    state, anywhere.
-SELECT COUNT(*) AS weather_rows FROM weather_hourly;
--- Expected: 263,040 (unchanged from before the demo)
-
-SELECT job_name, status,
-       end_time - start_time AS duration
+-- 4. Now look at the audit trail -- a FAILED row appears
+--    with the error message captured. The work, however,
+--    was rolled back: weather_hourly is unchanged.
+SELECT job_name, status, rows_processed,
+       end_time - start_time AS duration,
+       LEFT(errors, 80) AS errors
 FROM job_log
-WHERE job_name = 'refresh_weather_hourly'
-ORDER BY start_time DESC LIMIT 2;
--- Expected: the same OK rows as in step 1 -- no FAILED row
--- because the failed call's audit INSERT rolled back too.
+WHERE job_name = 'demo_refresh_weather_hourly'
+ORDER BY start_time DESC
+LIMIT 3;
+
+SELECT COUNT(*) AS weather_rows FROM weather_hourly;
+-- Expected: still 263,040 (unchanged from before the demo)
 
 
--- 5. Fix the bad row.
+-- 5. Fix the bad row
 DELETE FROM staging.weather_raw
 WHERE time = 'CORRUPT_TIMESTAMP';
 
 
--- 6. Re-run. This time the procedure succeeds in ~3 seconds.
-CALL refresh_weather_hourly();
+-- 6. Re-run -- this time the procedure succeeds
+CALL demo_refresh_weather_hourly();
 
 
--- 7. Audit trail shows a fresh OK row with real wall-clock
---    duration. The pipeline is back to healthy.
+-- 7. Audit trail now shows FAILED then OK side by side
 SELECT job_name, status, rows_processed,
-       end_time - start_time AS duration
+       end_time - start_time AS duration,
+       LEFT(COALESCE(errors, ''), 50) AS errors
 FROM job_log
-WHERE job_name = 'refresh_weather_hourly'
-ORDER BY start_time DESC LIMIT 3;
+WHERE job_name = 'demo_refresh_weather_hourly'
+ORDER BY start_time DESC
+LIMIT 4;
 
 
 -- =========================================================
--- Cleanup (run only if the demo was interrupted between
--- steps 2 and 5 and a corrupt row is still in staging):
+-- Cleanup if the demo was interrupted between steps 2 and 5
+-- and a corrupt row is still in staging:
 --
---   DELETE FROM staging.weather_raw WHERE time = 'CORRUPT_TIMESTAMP';
+--   DELETE FROM staging.weather_raw
+--   WHERE time = 'CORRUPT_TIMESTAMP';
 -- =========================================================
