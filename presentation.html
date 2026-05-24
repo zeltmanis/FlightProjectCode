@@ -567,56 +567,61 @@ B6217   LAX→JFK   23:50  —                 —                   —       4
   <div class="slide">
     <div class="logo">Capstone</div>
     <div class="slide-header">
-      <h2>Resilience &mdash; clean rollback on dirty data</h2>
-      <div class="subtitle">Live demo: introduce a corrupt date, watch the pipeline reject it without corrupting anything.</div>
+      <h2>Resilience &mdash; failures are first-class data</h2>
+      <div class="subtitle">Live demo: inject a corrupt row, the procedure fails &amp; logs it, work rolls back, recovery is logged too.</div>
     </div>
     <div class="content">
       <div class="three-col">
         <div class="box">
           <h3>1. Inject dirty data</h3>
-<pre><span class="kw">INSERT INTO</span> staging.flights_raw (
-  flight_date, reporting_airline,
-  origin, dest, ...
+<pre><span class="kw">INSERT INTO</span> staging.weather_raw (
+  airport_code, time, ...
 ) <span class="kw">VALUES</span> (
-  <span class="str">'CORRUPT_DATE'</span>, <span class="str">'AA'</span>,
-  <span class="str">'ATL'</span>, <span class="str">'LAX'</span>, ...
+  <span class="str">'ATL'</span>, <span class="str">'CORRUPT_TIMESTAMP'</span>, ...
 );</pre>
           <p style="font-size:13px;color:var(--ink-500);">
-            Simulates real ETL hitting a fat-fingered upstream date.
+            Simulates real ETL hitting a fat-fingered upstream value.
           </p>
         </div>
         <div class="box">
-          <h3>2. CALL refresh_flights();</h3>
+          <h3>2. CALL demo_refresh_weather_hourly();</h3>
 <pre style="color:#ffb3b3;background:#3a1414;"><span style="color:#ff6b6b;font-weight:700;">ERROR:</span> invalid input syntax
-for type date: <span class="str">"CORRUPT_DATE"</span>
+for type timestamp: <span class="str">"CORRUPT_TIMESTAMP"</span>
 
-CONTEXT: PL/pgSQL function
-  refresh_flights() line 47
-  at SQL statement</pre>
+<span style="color:#ffd977;">HINT:</span>  See job_log table
+       for the FAILED row.</pre>
           <p style="font-size:13px;color:var(--ink-500);">
-            48 seconds in, the DATE cast hits the bad row and fails. The
-            error message points directly at the dirty data.
+            ~10 ms in, the <code>::TIMESTAMP</code> cast fails. The
+            procedure catches the error and records it.
           </p>
         </div>
         <div class="box">
-          <h3>3. Verify: nothing corrupted</h3>
-<pre><span class="kw">SELECT COUNT</span>(*) <span class="kw">FROM</span> flights;
-&nbsp;<span class="com">→ 1,402,592 (unchanged)</span></pre>
+          <h3>3. The audit log captures it</h3>
+<pre><span class="kw">SELECT</span> job_name, status, errors
+<span class="kw">FROM</span> job_log <span class="kw">WHERE</span> ...
+
+<span style="color:#ff6b6b;">FAILED</span>  invalid input syntax
+        for type timestamp...</pre>
           <p style="font-size:13px;color:var(--ink-500);">
-            <span class="highlight">The whole transaction rolled back</span>
-            &mdash; the <code>TRUNCATE</code>, the partial <code>INSERT</code>,
-            even the audit row. <strong>No partial state, anywhere.</strong>
+            And <code>weather_hourly</code> is still 263,040 rows
+            &mdash; work rolled back, audit persisted.
           </p>
         </div>
       </div>
 
       <div class="box" style="margin-top:20px;background:#dff5e6;border-color:#b6e3c4;">
-        <h3 style="color:var(--green-600);">4. Fix and re-run &mdash; back to healthy</h3>
-        <pre><span class="kw">DELETE FROM</span> staging.flights_raw <span class="kw">WHERE</span> flight_date = <span class="str">'CORRUPT_DATE'</span>;
-<span class="kw">CALL</span> refresh_flights();
-&nbsp;<span class="com">→ job_log:  refresh_flights  OK  rows=1,402,592  dur=0:02:11.839576</span></pre>
+        <h3 style="color:var(--green-600);">4. Fix and re-run &mdash; recovery side-by-side</h3>
+<pre><span class="kw">DELETE FROM</span> staging.weather_raw <span class="kw">WHERE</span> time = <span class="str">'CORRUPT_TIMESTAMP'</span>;
+<span class="kw">CALL</span> demo_refresh_weather_hourly();
+
+<span class="com">-- job_log now shows both:</span>
+demo_refresh_weather_hourly  <span style="color:#1e8a4c;">OK</span>      263,040  <span class="com">dur=0:00:03.467</span>
+demo_refresh_weather_hourly  <span style="color:#d14646;">FAILED</span>  NULL     <span class="com">dur=0:00:00.010   errors="invalid input syntax..."</span>
+</pre>
         <p style="font-size:13px;color:var(--ink-700);margin-top:6px;">
-          Fresh <code>OK</code> row, real wall-clock duration. The pipeline is back to a clean state.
+          <span class="highlight">Failures are recorded, not hidden.</span>
+          The "audited-failure" pattern keeps the audit row outside the
+          work transaction so it survives the rollback. See REPORT &sect;9.
         </p>
       </div>
     </div>

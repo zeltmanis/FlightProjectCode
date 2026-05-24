@@ -131,11 +131,13 @@ Each step is a **stored procedure** (PL/pgSQL inside Postgres). Trigger with `CA
 | 8 | `predict_flights()` | For every 2024 flight: LEFT JOIN against the model; emit `exp_delay`, `late_likelihood`, `magnitude`, `sample_size`, `explanation` | TRUNCATE+INSERT |
 | 9 | `validate_predictions()` | Compare predictions to actual 2024 outcomes; write 11 metric rows under a fresh `run_id` | INSERT (cumulative) |
 | 10 | `run_pipeline()` | Master orchestrator — calls steps 1–9 in dependency order, ~99 sec post-cleaning | wraps the above |
+| — | `demo_refresh_weather_hourly()` | **Demo-only** variant of `refresh_weather_hourly()` that uses the "audited failure" pattern so FAILED rows persist in `job_log` even when the work transaction rolls back. Used by the resilience demo. Requires the caller to be in **autocommit mode** (in DataGrip: Tx: Auto). | special pattern |
 
-Plus two callable helpers:
+Plus three callable helpers:
 
 - **`hhmm_to_ts(date_text, hhmm_text)`** — combines a flight date and HHMM time string into a UTC `TIMESTAMPTZ`. Handles the `'2400'` edge case (= midnight next day). Used inside `refresh_flights()`.
 - **`predict_for_airport(p_airport CHAR(3), p_date DATE)`** — `SELECT * FROM predict_for_airport('LAX', DATE '2024-07-15');` returns ranked predictions for the day. The headline demo entrypoint.
+- **`evaluate_for_airport(p_airport CHAR(3), p_date DATE)`** — same shape as `predict_for_airport` plus actual outcome columns + a per-flight `verdict` (within ±15 min / off by more / cancelled / …). Used to show "how well did we predict?"
 
 ### Why two patterns (UPSERT vs TRUNCATE+INSERT)?
 
@@ -340,18 +342,76 @@ FROM job_log ORDER BY start_time DESC LIMIT 8;
 -- 2. The headline query — predictions for an airport on a date
 SELECT * FROM predict_for_airport('LAX', DATE '2024-07-15') LIMIT 15;
 
--- 3. The validation numbers
+-- 3. How did we do? Predictions vs actuals + verdict per flight
+SELECT * FROM evaluate_for_airport('LAX', DATE '2024-07-15') LIMIT 15;
+
+-- 4. The validation numbers
 SELECT metric_name, ROUND(metric_value, 3) AS value, population, notes
 FROM validation_results
 WHERE run_id = (SELECT MAX(run_id) FROM validation_results)
 ORDER BY metric_name;
 
--- 4. The resilience demo — paste sql/demo/failed_job_demo.sql line by line
+-- 5. The resilience demo — see sql/demo/failed_job_demo.sql
+--    NOTE: switch DataGrip to "Tx: Auto" before running this section.
 ```
 
 Demonstrates: orchestration, audit logging, idempotency, real
-predictions, real validation, and clean transactional rollback on
-dirty data.
+predictions, real validation, and visible failure-recovery in
+the audit log.
+
+### The resilience demo (sql/demo/failed_job_demo.sql)
+
+> ⚠️ **DataGrip users — first toggle the transaction mode from
+> "Tx: Manual" to "Tx: Auto"** in the SQL editor toolbar.
+> The demo procedure uses in-body `COMMIT` (the "audited failure"
+> pattern), which PG rejects if the caller has an open outer
+> transaction.
+
+```sql
+-- 1. Baseline
+SELECT job_name, status, rows_processed,
+       end_time - start_time AS duration,
+       LEFT(COALESCE(errors, ''), 50) AS errors
+FROM job_log
+WHERE job_name = 'demo_refresh_weather_hourly'
+ORDER BY start_time DESC LIMIT 5;
+
+-- 2. Inject corrupt data
+INSERT INTO staging.weather_raw (
+    airport_code, time, temperature_2m, relative_humidity_2m,
+    precipitation, snowfall, windspeed_10m, cloud_cover, weathercode
+) VALUES (
+    'ATL', 'CORRUPT_TIMESTAMP',
+    '10', '50', '0', '0', '5', '20', '0'
+);
+
+-- 3. Run the demo procedure — expect ERROR + a FAILED row in job_log
+CALL demo_refresh_weather_hourly();
+
+-- 4. job_log now shows the FAILED row with the error captured
+SELECT job_name, status, end_time - start_time AS duration,
+       LEFT(errors, 80) AS errors
+FROM job_log
+WHERE job_name = 'demo_refresh_weather_hourly'
+ORDER BY start_time DESC LIMIT 3;
+
+-- weather_hourly is unchanged — work rolled back, audit persisted
+SELECT COUNT(*) FROM weather_hourly;
+
+-- 5. Fix the bad row
+DELETE FROM staging.weather_raw WHERE time = 'CORRUPT_TIMESTAMP';
+
+-- 6. Re-run — succeeds
+CALL demo_refresh_weather_hourly();
+
+-- 7. Audit shows FAILED + OK side by side
+SELECT job_name, status, rows_processed,
+       end_time - start_time AS duration,
+       LEFT(COALESCE(errors, ''), 50) AS errors
+FROM job_log
+WHERE job_name = 'demo_refresh_weather_hourly'
+ORDER BY start_time DESC LIMIT 4;
+```
 
 ---
 

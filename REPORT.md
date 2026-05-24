@@ -480,56 +480,152 @@ ORDER BY start_time DESC
 LIMIT 20;
 ```
 
-### 9.1 Failed-job behaviour — and the transactional design choice
+### 9.1 Two audit patterns — and when each makes sense
 
-The natural question is: *what does `job_log` look like when a
-procedure fails halfway?*
+There are two patterns in this project for capturing failures in
+`job_log`. They make different trade-offs.
 
-**It doesn't have a FAILED row, and that's the right answer.**
+**Pattern A — single-transaction (production refresh_* procedures):**
 
-A `CALL refresh_flights()` runs in a single transaction. When the
-procedure raises (e.g. on a `DATE` cast failure), PL/pgSQL's
-implicit savepoint rolls back **everything** inside that call —
-including the `INSERT INTO job_log` that recorded the RUNNING
-state. The `EXCEPTION WHEN OTHERS` block runs and issues an
-`UPDATE`, but the row it targets no longer exists, so the UPDATE
-silently affects zero rows. Then `RAISE` propagates the original
-exception to the caller.
+```sql
+BEGIN
+    INSERT INTO job_log VALUES (..., 'RUNNING') RETURNING ... INTO v_job_id;
+    -- work: TRUNCATE + INSERT
+    UPDATE job_log SET status = 'OK' WHERE job_id = v_job_id;
+EXCEPTION WHEN OTHERS THEN
+    UPDATE job_log SET status = 'FAILED', errors = SQLERRM WHERE job_id = v_job_id;
+    RAISE;
+END;
+```
+
+This pattern is **transactionally clean**: the whole call is one
+unit. On failure, PL/pgSQL's implicit savepoint rolls back
+**everything** — including the audit INSERT. The EXCEPTION block's
+UPDATE finds no row to update. `RAISE` propagates the error.
 
 The result: **failures leave no partial state anywhere — not in
 the cleaned tables, not in the audit log.** This is exactly the
-transactional property we want. The "audit" of a failure is the
-Postgres ERROR shown in the caller's output (DataGrip's console
-in our demo), which points directly at the offending data.
+transactional property we want in a real pipeline. The "audit" of
+a failure is the Postgres ERROR shown in the caller's output
+(DataGrip's console), which points directly at the offending data.
 
-Persisting FAILED audit rows *as well* would require breaking
-this guarantee — either with `dblink` to write from a separate
-connection, or by splitting the procedure body so the audit
-INSERT commits before the work begins. We chose not to: the
-clean rollback is more valuable than the cosmetic audit row,
-and a database-course grader appreciates the engineering call.
+**Pattern B — audited-failure (the demo procedure):**
 
-### 9.2 The demo
+```sql
+BEGIN
+    INSERT INTO job_log VALUES (..., 'RUNNING') RETURNING ... INTO v_job_id;
+    COMMIT;  -- persist the RUNNING row OUTSIDE the work tx
 
-`sql/demo/failed_job_demo.sql` is the run-line-by-line script
-that walks through:
+    BEGIN  -- sub-block with EXCEPTION
+        -- work: TRUNCATE + INSERT
+    EXCEPTION WHEN OTHERS THEN
+        v_failed := TRUE; v_err := SQLERRM;
+    END;
 
-1. Show baseline `job_log` (clean OK history)
-2. INSERT a row with `flight_date = 'CORRUPT_DATE'` into staging
-3. `CALL refresh_flights();` — fails after ~48 seconds with
-   *"invalid input syntax for type date: \"CORRUPT_DATE\""*
-4. `SELECT COUNT(*) FROM flights;` — still 1,402,592, unchanged
-5. `DELETE FROM staging.flights_raw WHERE flight_date = 'CORRUPT_DATE';`
-6. `CALL refresh_flights();` — succeeds in ~2 minutes
-7. `SELECT … FROM job_log` shows a fresh OK row with a real
-   duration (`0:02:11.839576`)
+    IF v_failed THEN
+        UPDATE job_log SET status = 'FAILED', errors = v_err WHERE job_id = v_job_id;
+        COMMIT;
+        RAISE EXCEPTION '%', v_err;
+    ELSE
+        UPDATE job_log SET status = 'OK' WHERE job_id = v_job_id;
+        COMMIT;
+    END IF;
+END;
+```
 
-The narrative on stage: *"Dirty data hits our pipeline. Postgres
-fails cleanly with a message that points at exactly the bad row.
-We confirm nothing downstream was corrupted — the whole
-transaction rolled back. We fix the bad row and re-run. The audit
-log shows we recovered. This is what production-grade transactional
-behaviour looks like."*
+This pattern **persists the audit row even when the work rolls
+back**. The trade-off: it uses in-procedure `COMMIT`, which
+PostgreSQL only allows when the caller is in **autocommit mode**.
+A caller with an open outer transaction (DataGrip's default
+"Tx: Manual") gets *"invalid transaction termination"*.
+
+### 9.2 Why we have both
+
+- **Production procedures** use Pattern A. They run inside
+  `run_pipeline()`, which orchestrates them inside a single
+  transaction. Pattern B would break that orchestration.
+- **The demo procedure** (`demo_refresh_weather_hourly()`) uses
+  Pattern B specifically so the presentation audience can *see*
+  a FAILED row appear in `job_log`. Otherwise the visible signal
+  is only the Postgres ERROR, which lives in DataGrip's output
+  panel rather than in a query result.
+
+This is a deliberate engineering call documented in commit
+`2c03f98`. In production, you'd pick one — likely Pattern A
+because it preserves cleanliness. For a course demo, Pattern B
+makes the failure narrative tangible.
+
+### 9.3 The resilience demo
+
+`sql/demo/failed_job_demo.sql` is the run-line-by-line script for
+the demo. **Before running, switch DataGrip's transaction mode
+from "Tx: Manual" to "Tx: Auto"** (the indicator in the SQL
+editor toolbar). Pattern B requires it.
+
+```sql
+-- Step 1: baseline (probably empty unless someone ran this before)
+SELECT job_name, status, rows_processed,
+       end_time - start_time AS duration,
+       LEFT(COALESCE(errors, ''), 50) AS errors
+FROM job_log
+WHERE job_name = 'demo_refresh_weather_hourly'
+ORDER BY start_time DESC LIMIT 5;
+
+-- Step 2: introduce dirty data
+INSERT INTO staging.weather_raw (
+    airport_code, time, temperature_2m, relative_humidity_2m,
+    precipitation, snowfall, windspeed_10m, cloud_cover, weathercode
+) VALUES (
+    'ATL', 'CORRUPT_TIMESTAMP',
+    '10', '50', '0', '0', '5', '20', '0'
+);
+
+-- Step 3: run the demo procedure — fails after ~10 ms
+CALL demo_refresh_weather_hourly();
+-- ERROR: invalid input syntax for type timestamp: "CORRUPT_TIMESTAMP"
+-- HINT:  See job_log table for the FAILED row.
+
+-- Step 4: now look at the audit log — a FAILED row appears
+SELECT job_name, status, end_time - start_time AS duration,
+       LEFT(errors, 80) AS errors
+FROM job_log
+WHERE job_name = 'demo_refresh_weather_hourly'
+ORDER BY start_time DESC LIMIT 3;
+-- ^ shows: status=FAILED, errors='invalid input syntax for type timestamp...'
+
+-- And weather_hourly is unchanged — work rolled back cleanly
+SELECT COUNT(*) FROM weather_hourly;   -- still 263,040
+
+-- Step 5: fix the bad row
+DELETE FROM staging.weather_raw WHERE time = 'CORRUPT_TIMESTAMP';
+
+-- Step 6: re-run — succeeds in ~3.5 sec
+CALL demo_refresh_weather_hourly();
+
+-- Step 7: audit shows FAILED + OK side by side
+SELECT job_name, status, rows_processed,
+       end_time - start_time AS duration,
+       LEFT(COALESCE(errors, ''), 50) AS errors
+FROM job_log
+WHERE job_name = 'demo_refresh_weather_hourly'
+ORDER BY start_time DESC LIMIT 4;
+```
+
+**Sample step-7 output** (from a real test run):
+```
+job_name                       status  rows_proc  duration       errors
+demo_refresh_weather_hourly    OK      263040     0:00:03.467
+demo_refresh_weather_hourly    FAILED  NULL       0:00:00.010    invalid input syntax for type timestamp: "CORRUPT_TIMESTAMP"
+```
+
+The narrative on stage: *"Dirty data hits our pipeline. The
+procedure fails fast — 10 milliseconds — with an error pointing
+at the bad row. The audit log captures the failure with its
+error message. The work is rolled back cleanly: `weather_hourly`
+still has all 263,040 rows. We fix the bad row and re-run; a
+fresh OK row appears next to the FAILED one. **Failures are
+first-class data in this pipeline — they're recorded, not
+hidden.**"*
 
 ---
 
