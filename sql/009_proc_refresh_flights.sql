@@ -47,9 +47,12 @@ BEGIN
     VALUES ('refresh_flights', 'RUNNING')
     RETURNING job_id INTO v_job_id;
 
-    -- flights_enriched FKs to flights, so we must truncate both together.
-    -- The user should re-run refresh_flights_enriched() after this.
-    TRUNCATE flights, flights_enriched RESTART IDENTITY;
+    -- Both flights_enriched AND predictions have an FK to flights, so
+    -- PG won't let us TRUNCATE flights alone. List all dependents
+    -- explicitly so the operator sees what gets cleared. The user
+    -- should re-run refresh_flights_enriched(), refresh_model_*(),
+    -- predict_flights(), validate_predictions() after this.
+    TRUNCATE flights, flights_enriched, predictions RESTART IDENTITY;
 
     INSERT INTO flights (
         flight_date, airline_code,
