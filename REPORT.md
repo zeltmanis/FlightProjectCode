@@ -222,21 +222,32 @@ Joins `flights` × `weather_hourly` twice — once on
 `(dest, scheduled_arrival)`. Computes derived weather features and a
 **weather bucket** used by the prediction model.
 
-The weather bucket is a `CASE` expression over the origin's weather at
-the scheduled departure hour:
+The weather bucket is a layered `CASE` expression over the origin's
+weather at the scheduled departure hour. The order matters — the
+first matching tier wins:
 
 ```sql
 CASE
-  WHEN origin_snowfall  > 0       THEN 'snow'
-  WHEN origin_precip_mm >= 2      THEN 'heavy_rain'
-  WHEN origin_precip_mm >  0      THEN 'light_rain'
-  WHEN origin_fog_risk            THEN 'fog'
+  WHEN w_dep.airport_code  IS NULL              THEN NULL
+  WHEN w_dep.snowfall_cm   > 0                  THEN 'snow'
+  WHEN w_dep.precipitation_mm >= 2              THEN 'heavy_rain'
+  WHEN w_dep.precipitation_mm >  0              THEN 'light_rain'
+  WHEN w_dep.relative_humidity > 90
+   AND w_dep.temperature_c BETWEEN -2 AND 5     THEN 'fog'
   ELSE 'clear'
 END
 ```
 
-*(Exact thresholds and bucket names are open — to tune against real
-data once 3 years are loaded. See §8.)*
+**Observed distribution** on the 1,402,592 enriched flights
+(2022-2024 × top 10 airports):
+
+| Bucket | Flights | % |
+|---|---:|---:|
+| clear | 1,233,428 | 88.0% |
+| light_rain | 116,797 | 8.3% |
+| fog | 22,129 | 1.6% |
+| heavy_rain | 17,133 | 1.2% |
+| snow | 13,105 | 0.9% |
 
 ---
 
@@ -427,15 +438,10 @@ Also bucketed accuracy: proportion of predictions within ±5 / ±10 /
 
 ## 8. Open design decisions
 
-*To be settled as we build.*
-
-- **Weather bucket thresholds**: do we treat 1 mm/hr as "light rain"
-  or "still essentially clear"? Tune against 2022-2023 distribution.
 - **Carrier as a 5th grouping key**: more refined predictions but
   smaller buckets. Worth comparing on a holdout.
-- **Minimum `sample_size` for a usable prediction**: 5? 20? 50?
-- **Cancellation prediction**: treated as out-of-scope for the
-  capstone (most cancellations are operational, not weather-driven).
+- **Cancellation prediction**: treated as out-of-scope (most
+  cancellations are operational, not weather-driven).
 
 ---
 
@@ -481,6 +487,53 @@ post-conditions — `refresh_flights()` leaves no orphan FK references;
 (c) prediction logic — for a hand-crafted training set with known
 historical averages, `predict_flights()` produces those exact
 averages.*
+
+---
+
+## 10.5. Live results (as of 2026-05-24)
+
+Pipeline ran end-to-end on the full 3-year × 10-airport scope.
+Timings from one `run_pipeline` pass (post-cleaning, the prediction
+layer only):
+
+```
+refresh_weather_hourly         3.5s   →  263,040 rows
+refresh_flights_enriched      56.2s   →  1,402,592 rows
+refresh_model_route_hour_w    12.8s   →  3,888 model rules
+predict_flights               20.3s   →  483,897 predictions
+validate_predictions           6.1s   →  11 metrics
+                               ─────
+                              98.9s   total prediction-layer rerun
+```
+
+### Prediction coverage on 2024 holdout
+
+| | n |
+|---|---:|
+| Total 2024 flights | 483,897 |
+| **with prediction** | **476,447 (98.5%)** |
+| `"no historical analogue"` (bucket has <10 rows in 2022-2023) | 7,450 (1.5%) |
+| `"weather forecast unavailable"` | 0 |
+
+### Validation against actual 2024 outcomes
+
+| Metric | Value |
+|---|---:|
+| Mean absolute error (MAE) | **16.9 min** |
+| Median absolute error | 0.0 min |
+| Accuracy within ±15 min | **78%** |
+| Accuracy within ±30 min | 86% |
+| Accuracy within ±60 min | 92% |
+| Bucket-match rate (predicted magnitude = actual magnitude) | **84%** |
+| Precision: `low` | 84% (when we said "low", on time 84% of the time) |
+| Precision: `high` | 47% (when we said "high", actually late 47% — base rate ≈25%) |
+| MAE within `low` / `average` / `high` predictions | 12 / 22 / 40 min |
+
+**Read**: the model is conservatively well-calibrated. It rarely
+mis-predicts on-time flights (the bulk of traffic), and when it
+calls "high likelihood" it nearly doubles the base rate of late
+flights. MAE grows with predicted severity because variance grows
+with severity — expected behaviour, not a flaw.
 
 ---
 

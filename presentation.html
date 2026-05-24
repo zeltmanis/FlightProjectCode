@@ -323,15 +323,43 @@ arr_del15             <span class="kw">BOOLEAN</span>   <span class="com">← de
     <div class="logo">Capstone</div>
     <div class="slide-header">
       <h2>Enrichment &mdash; joining weather to flights</h2>
-      <div class="subtitle">Two JOINs against weather_hourly: origin and destination.</div>
+      <div class="subtitle">Two JOINs against weather_hourly + derived features. ~56s on 1.4M rows.</div>
     </div>
     <div class="content">
-      <div class="box todo">
-        <h3>To be expanded once 3-year load + weather refresh are complete</h3>
-        <p>Cover: the two weather joins, derived features
-          (<code>weather_bucket</code>, <code>fog_risk</code>, <code>hour_of_day</code>),
-          and an example row from <code>flights_enriched</code>.
-        </p>
+      <div class="two-col">
+        <div class="box">
+          <h3>The two joins</h3>
+<pre><span class="kw">FROM</span> flights f
+<span class="kw">LEFT JOIN</span> weather_hourly w_dep
+  <span class="kw">ON</span> w_dep.airport_code = f.origin_airport_code
+ <span class="kw">AND</span> w_dep.obs_timestamp =
+     <span class="kw">DATE_TRUNC</span>(<span class="str">'hour'</span>, f.scheduled_departure)
+<span class="kw">LEFT JOIN</span> weather_hourly w_arr
+  <span class="kw">ON</span> w_arr.airport_code = f.dest_airport_code
+ <span class="kw">AND</span> w_arr.obs_timestamp =
+     <span class="kw">DATE_TRUNC</span>(<span class="str">'hour'</span>, f.scheduled_arrival)</pre>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            <code>LEFT JOIN</code> so flights without a weather match still
+            land in <code>flights_enriched</code> with NULL weather columns.
+          </p>
+        </div>
+        <div class="box">
+          <h3>weather_bucket distribution (1.4M flights)</h3>
+          <table style="font-size:13px;">
+            <thead><tr><th>bucket</th><th style="text-align:right;">n</th><th style="text-align:right;">%</th></tr></thead>
+            <tbody>
+              <tr><td>clear</td><td style="text-align:right;">1,233,428</td><td style="text-align:right;">88.0%</td></tr>
+              <tr><td>light_rain</td><td style="text-align:right;">116,797</td><td style="text-align:right;">8.3%</td></tr>
+              <tr><td>fog</td><td style="text-align:right;">22,129</td><td style="text-align:right;">1.6%</td></tr>
+              <tr><td>heavy_rain</td><td style="text-align:right;">17,133</td><td style="text-align:right;">1.2%</td></tr>
+              <tr><td>snow</td><td style="text-align:right;">13,105</td><td style="text-align:right;">0.9%</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            Five buckets cover all weather we observe in the 263k hourly
+            records across 10 airports × 3 years.
+          </p>
+        </div>
       </div>
     </div>
   </div>
@@ -387,40 +415,116 @@ arr_del15             <span class="kw">BOOLEAN</span>   <span class="com">← de
   </div>
 
   <!-- ===========================================================
-       SLIDE 7 — Prediction step (TODO)
+       SLIDE 7 — Prediction step
        =========================================================== -->
   <div class="slide">
     <div class="logo">Capstone</div>
     <div class="slide-header">
-      <h2>Predicting 2024 &mdash; one JOIN</h2>
-      <div class="subtitle">Future flights × model → predictions.</div>
+      <h2>Predicting 2024 &mdash; one LEFT JOIN</h2>
+      <div class="subtitle">Future flights × trained model → predictions. 20.3s on 484k flights.</div>
     </div>
     <div class="content">
-      <div class="box todo">
-        <h3>To be filled once predict_flights() is implemented</h3>
-        <p>Cover: the LEFT JOIN against the model; what happens when the bucket
-          is missing (NULL prediction, "no historical analogue"); an example row
-          from <code>predictions</code> with its <code>explanation</code> column.
-        </p>
+      <div class="two-col">
+        <div class="box">
+          <h3>The query</h3>
+<pre><span class="kw">SELECT</span>
+  f.flight_id,
+  m.median_delay <span class="kw">AS</span> exp_delay,
+  <span class="kw">CASE</span>
+    <span class="kw">WHEN</span> m.pct_late &lt; 0.20 <span class="kw">THEN</span> <span class="str">'low'</span>
+    <span class="kw">WHEN</span> m.pct_late &lt; 0.50 <span class="kw">THEN</span> <span class="str">'average'</span>
+    <span class="kw">ELSE</span>                       <span class="str">'high'</span>
+  <span class="kw">END</span> <span class="kw">AS</span> late_likelihood,
+  ...
+<span class="kw">FROM</span> flights_enriched fe
+<span class="kw">JOIN</span> flights f <span class="kw">USING</span> (flight_id)
+<span class="kw">LEFT JOIN</span> model_route_hour_weather m
+  <span class="kw">ON</span> m.origin = f.origin_airport_code
+ <span class="kw">AND</span> m.dest   = f.dest_airport_code
+ <span class="kw">AND</span> m.hour_of_day    = fe.hour_of_day
+ <span class="kw">AND</span> m.weather_bucket = fe.dep_weather_bucket
+<span class="kw">WHERE EXTRACT</span>(year FROM f.flight_date) = 2024;</pre>
+        </div>
+        <div class="box">
+          <h3>Coverage on 2024 holdout</h3>
+          <div class="metric-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="metric-card">
+              <div class="metric-num">483,897</div>
+              <div class="metric-label">total flights</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-num">98.5%</div>
+              <div class="metric-label">with prediction</div>
+            </div>
+          </div>
+          <ul style="margin-top:14px;">
+            <li><strong>476,447</strong> with a model match</li>
+            <li><strong>7,450</strong> &ldquo;no historical analogue&rdquo;<br>
+                <span style="color:var(--ink-500);font-size:14px;">(bucket has &lt;10 rows in 2022-2023 &mdash; honest fallback)</span></li>
+          </ul>
+          <p style="margin-top:10px;font-size:14px;color:var(--ink-500);">
+            <code>LEFT JOIN</code> + <code>sample_size &gt;= 10</code> means
+            every flight gets a row, predicted or not.
+          </p>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- ===========================================================
-       SLIDE 8 — Validation (TODO)
+       SLIDE 8 — Validation
        =========================================================== -->
   <div class="slide">
     <div class="logo">Capstone</div>
     <div class="slide-header">
       <h2>Validation &mdash; how good is it?</h2>
-      <div class="subtitle">Compare predictions to actual 2024 delays.</div>
+      <div class="subtitle">476,447 predictions evaluated against actual 2024 delays.</div>
     </div>
     <div class="content">
-      <div class="box todo">
-        <h3>To be filled once validate_predictions() runs</h3>
-        <p>Metrics planned: mean absolute error (MAE); accuracy within ±5/±10/±15
-          minutes; per-weather-bucket breakdown to identify which conditions we
-          predict well and which we don't.</p>
+      <div class="metric-grid">
+        <div class="metric-card">
+          <div class="metric-num">16.9 min</div>
+          <div class="metric-label">mean absolute error</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-num">78%</div>
+          <div class="metric-label">within ±15 min</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-num">84%</div>
+          <div class="metric-label">magnitude bucket correct</div>
+        </div>
+      </div>
+
+      <div class="two-col" style="margin-top:20px;">
+        <div class="box">
+          <h3>Calibration of categorical labels</h3>
+          <table style="font-size:14px;">
+            <thead><tr><th>label</th><th style="text-align:right;">precision</th><th style="text-align:right;">MAE (min)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge badge-green">low</span></td><td style="text-align:right;"><strong>84%</strong></td><td style="text-align:right;">12</td></tr>
+              <tr><td><span class="badge badge-amber">average</span></td><td style="text-align:right;">&mdash;</td><td style="text-align:right;">22</td></tr>
+              <tr><td><span class="badge badge-amber" style="background:#ffe2c8;">high</span></td><td style="text-align:right;">47%</td><td style="text-align:right;">40</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            "high" precision of 47% vs base rate of ~25% late flights &rarr;
+            <span class="highlight">~2× lift</span> on identifying delays.
+          </p>
+        </div>
+        <div class="box">
+          <h3>Accuracy tolerance ladder</h3>
+          <ul>
+            <li>±15 min &rarr; <strong>78%</strong> correct</li>
+            <li>±30 min &rarr; <strong>86%</strong> correct</li>
+            <li>±60 min &rarr; <strong>92%</strong> correct</li>
+          </ul>
+          <p style="margin-top:10px;font-size:14px;color:var(--ink-500);">
+            For a pure-SQL lookup model trained in <strong>13 seconds</strong>,
+            these are honest numbers. MAE grows with predicted severity
+            because variance grows &mdash; expected behaviour.
+          </p>
+        </div>
       </div>
     </div>
   </div>

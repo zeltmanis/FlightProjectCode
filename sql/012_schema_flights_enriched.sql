@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS flights_enriched (
                           CHECK (dep_weather_bucket IS NULL
                                  OR dep_weather_bucket IN
                                      ('clear','light_rain','heavy_rain',
-                                      'snow','fog','thunderstorm'))
+                                      'snow','fog'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_flights_enriched_flight_id ON flights_enriched (flight_id);
@@ -60,4 +60,4 @@ COMMENT ON COLUMN flights_enriched.dep_fog_risk IS
 COMMENT ON COLUMN flights_enriched.dep_severe_weather IS
     'precipitation >= 4mm OR snowfall >= 1cm OR wind >= 40 km/h';
 COMMENT ON COLUMN flights_enriched.dep_weather_bucket IS
-    'Categorical bucket: thunderstorm | snow | heavy_rain | light_rain | fog | clear. NULL when weather not joined.';
+    'Categorical bucket: snow | heavy_rain | light_rain | fog | clear. NULL when weather not joined.';

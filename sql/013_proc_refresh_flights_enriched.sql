@@ -102,12 +102,10 @@ BEGIN
              WHEN 9  THEN 'autumn' WHEN 10 THEN 'autumn' WHEN 11 THEN 'autumn'
         END                                              AS season,
 
-        -- Departure weather bucket. Order matters: thunderstorm wins
-        -- over rain, snow over fog, etc. WMO weather codes 95/96/99
-        -- are thunderstorm.
+        -- Departure weather bucket. Order matters: snow wins over
+        -- rain, fog evaluated after precipitation tiers.
         CASE
             WHEN w_dep.airport_code  IS NULL              THEN NULL
-            WHEN w_dep.weather_code  IN (95, 96, 99)      THEN 'thunderstorm'
             WHEN w_dep.snowfall_cm   > 0                  THEN 'snow'
             WHEN w_dep.precipitation_mm >= 2              THEN 'heavy_rain'
             WHEN w_dep.precipitation_mm >  0              THEN 'light_rain'

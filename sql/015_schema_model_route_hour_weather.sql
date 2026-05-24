@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS model_route_hour_weather (
     weather_bucket    VARCHAR(20)  NOT NULL
                       CHECK (weather_bucket IN
                           ('clear','light_rain','heavy_rain',
-                           'snow','fog','thunderstorm')),
+                           'snow','fog')),
 
     -- Magnitude (continuous estimators of "how late, in minutes")
     avg_delay         DECIMAL,
