@@ -13,7 +13,7 @@
 CREATE TABLE IF NOT EXISTS job_log (
     job_id          BIGSERIAL PRIMARY KEY,
     job_name        VARCHAR NOT NULL,
-    start_time      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    start_time      TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     end_time        TIMESTAMPTZ,
     rows_processed  INTEGER,
     status          VARCHAR NOT NULL DEFAULT 'RUNNING'

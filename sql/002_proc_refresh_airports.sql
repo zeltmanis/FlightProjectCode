@@ -69,7 +69,7 @@ BEGIN
 
     -- 4. Mark the job as OK with the row count.
     UPDATE job_log
-       SET end_time       = NOW(),
+       SET end_time       = clock_timestamp(),
            status         = 'OK',
            rows_processed = v_rows
      WHERE job_id = v_job_id;
@@ -77,7 +77,7 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
     -- 5. Mark the job as FAILED, store the error message.
     UPDATE job_log
-       SET end_time = NOW(),
+       SET end_time = clock_timestamp(),
            status   = 'FAILED',
            errors   = SQLERRM
      WHERE job_id = v_job_id;

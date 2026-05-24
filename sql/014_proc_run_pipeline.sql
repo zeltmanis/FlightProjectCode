@@ -52,14 +52,14 @@ BEGIN
       AND  start_time >= (SELECT start_time FROM job_log WHERE job_id = v_job_id);
 
     UPDATE job_log
-       SET end_time       = NOW(),
+       SET end_time       = clock_timestamp(),
            status         = 'OK',
            rows_processed = v_total
      WHERE job_id = v_job_id;
 
 EXCEPTION WHEN OTHERS THEN
     UPDATE job_log
-       SET end_time = NOW(),
+       SET end_time = clock_timestamp(),
            status   = 'FAILED',
            errors   = SQLERRM
      WHERE job_id = v_job_id;

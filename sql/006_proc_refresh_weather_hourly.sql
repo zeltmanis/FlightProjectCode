@@ -51,14 +51,14 @@ BEGIN
     GET DIAGNOSTICS v_rows = ROW_COUNT;
 
     UPDATE job_log
-       SET end_time       = NOW(),
+       SET end_time       = clock_timestamp(),
            status         = 'OK',
            rows_processed = v_rows
      WHERE job_id = v_job_id;
 
 EXCEPTION WHEN OTHERS THEN
     UPDATE job_log
-       SET end_time = NOW(),
+       SET end_time = clock_timestamp(),
            status   = 'FAILED',
            errors   = SQLERRM
      WHERE job_id = v_job_id;
