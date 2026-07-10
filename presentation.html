@@ -143,12 +143,13 @@ tr:last-child td{border-bottom:none;}
   <div class="slide active">
     <div class="logo">Capstone</div>
     <div class="center-content">
-      <h1>Predicting US<br>Flight Delays</h1>
+      <h1 style="white-space:nowrap;">Predicting US Flight Delays</h1>
       <p style="font-size:clamp(18px,2vw,24px);color:var(--ink-500);margin-top:18px;">
         A PostgreSQL capstone — Databases &amp; Project Management
       </p>
       <div style="font-size:18px;color:var(--ink-700);margin-top:48px;line-height:1.7;">
-        <p><strong>Edgar Z</strong> &nbsp;·&nbsp; Tim &nbsp;·&nbsp; Endrit &nbsp;·&nbsp; Egon</p>
+        <p style="font-weight:800;color:var(--blue-700);font-size:20px;letter-spacing:.03em;">Team UGANDA</p>
+        <p style="margin-top:8px;">Edgars &nbsp;·&nbsp; Tim &nbsp;·&nbsp; Endrit &nbsp;·&nbsp; Egon</p>
         <p style="color:var(--ink-500);margin-top:6px;">02 Semester</p>
       </div>
 
@@ -162,7 +163,56 @@ tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- ===========================================================
-       SLIDE 2 — Data sources
+       SLIDE 2 — Project management
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Project management &mdash; how we ran it</h2>
+      <div class="subtitle">Jira, a hybrid plan-driven + agile approach.</div>
+    </div>
+    <div class="content">
+      <div class="three-col">
+        <div class="box">
+          <h3>Tool &mdash; Jira</h3>
+          <ul>
+            <li>One shared board for the whole team</li>
+            <li>Backlog, sprints, and progress in one place</li>
+            <li>Every task traceable to a deliverable</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Structure &mdash; Epics &rarr; Stories</h3>
+          <ul>
+            <li><strong>Epics</strong> = the big pipeline layers (ingest, clean, enrich, model, validate)</li>
+            <li><strong>Stories</strong> = the concrete work inside each epic</li>
+            <li>Clear parent&ndash;child hierarchy</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Estimation &mdash; Story points</h3>
+          <ul>
+            <li>Relative effort, not hours</li>
+            <li>Sized per story before each sprint</li>
+            <li>Used to plan realistic sprint loads</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="box" style="margin-top:20px;">
+        <h3>Approach &mdash; hybrid</h3>
+        <p>
+          Plan-driven where it helps &mdash; <span class="highlight">fixed scope, fixed deadline</span>,
+          and a clear four-layer pipeline defined up front &mdash; combined with agile execution:
+          a Jira backlog, epics broken into stories, story-point estimation, and re-planning as we
+          learned. A stable target, with room to adapt.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 3 — Data sources
        =========================================================== -->
   <div class="slide">
     <div class="logo">Capstone</div>
@@ -229,335 +279,135 @@ tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- ===========================================================
-       SLIDE 3 — Architecture
+       SLIDE 5 — Raw text to typed columns
        =========================================================== -->
   <div class="slide">
     <div class="logo">Capstone</div>
     <div class="slide-header">
-      <h2>Architecture &mdash; ELT, four layers</h2>
-      <div class="subtitle">Python fetches and loads. PostgreSQL does everything else.</div>
-    </div>
-    <div class="content">
-      <pre><span class="com">[ Python ]                          [ PostgreSQL — Uganda DB ]</span>
-
-  fetch_*.py     <span class="kw">COPY</span> &#9658;  staging.flights_raw      <span class="com">┐  raw, all TEXT</span>
-                                  staging.weather_raw      <span class="com">│</span>
-                                  staging.airports_raw     <span class="com">┘</span>
-                                          │
-                                          │  refresh_*()
-                                          ▼
-                            airports / airlines / weather_hourly / flights
-                                          │
-                                          │  refresh_flights_enriched()
-                                          ▼
-                            flights_enriched     <span class="com">← weather + features per flight</span>
-                                          │
-                                          │  refresh_model_route_hour_weather()
-                                          ▼
-                            model_route_hour_weather    <span class="com">← THE MODEL</span>
-                                          │
-                                          │  predict_flights()
-                                          ▼
-                            predictions   ───▶   validate_predictions()  ───▶  validation_results
-</pre>
-      <p style="margin-top:12px;font-size:14px;color:var(--ink-500);">
-        Why ELT not ETL? <span class="highlight">The database has the heavy machinery</span>
-        — indexes, FKs, set-based ops. Transforms in SQL are version-controlled,
-        replayable, and debuggable in DataGrip.
-      </p>
-    </div>
-  </div>
-
-  <!-- ===========================================================
-       SLIDE 4 — Cleaning step (built; demo content)
-       =========================================================== -->
-  <div class="slide">
-    <div class="logo">Capstone</div>
-    <div class="slide-header">
-      <h2>Cleaning &mdash; staging to typed</h2>
-      <div class="subtitle">All text in. Validated, typed, FK-enforced out.</div>
+      <h2>Why jobs? &mdash; raw text in, typed columns out</h2>
+      <div class="subtitle">The CSV loads as 14 TEXT columns. A job strips, validates, and types every one.</div>
     </div>
     <div class="content">
       <div class="two-col">
         <div class="box">
-          <h3>Staging (14 TEXT columns)</h3>
-<pre>flight_date         <span class="str">"2023-01-02"</span>
-reporting_airline   <span class="str">"9E"</span>
-origin              <span class="str">"ATL"</span>
-dest                <span class="str">"LGA"</span>
-crs_dep_time        <span class="str">"800"</span>
-dep_time            <span class="str">"757.0"</span>
-cancelled           <span class="str">"0.0"</span>
-cancellation_code   <span class="str">""</span>
-arr_delay_minutes   <span class="str">"0.0"</span>
-weather_delay       <span class="str">""</span></pre>
-          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
-            Empty strings instead of NULL. Floats for times. No type safety.
-          </p>
+          <h3>The problem &mdash; everything is a string</h3>
+<pre><span class="com">-- staging.flights_raw : every column is TEXT</span>
+flight_date        <span class="str">'2022-01-06'</span>   <span class="com">-- a date, as text</span>
+crs_dep_time       <span class="str">'520'</span>          <span class="com">-- HHMM, as text</span>
+dep_time           <span class="str">'512.0'</span>        <span class="com">-- a time... as a float string</span>
+cancelled          <span class="str">'0.0'</span>          <span class="com">-- a boolean... as '0.0'</span>
+cancellation_code  <span class="str">''</span>             <span class="com">-- empty string, not NULL</span>
+arr_delay_minutes  <span class="str">'0.0'</span>          <span class="com">-- a number, as text</span></pre>
+          <ul style="font-size:14px;margin-top:8px;">
+            <li>No validation &mdash; <span class="str">'garbage'</span> would load just fine</li>
+            <li>Text won't sort or do math; indexes are meaningless</li>
+            <li>Empty string &ne; NULL; no FKs, no CHECKs possible</li>
+          </ul>
         </div>
         <div class="box">
-          <h3>Cleaned (typed + validated)</h3>
-<pre>flight_date           <span class="kw">DATE</span>
-airline_code          <span class="kw">VARCHAR(10) FK</span>
-origin_airport_code   <span class="kw">CHAR(3)     FK</span>
-dest_airport_code     <span class="kw">CHAR(3)     FK</span>
-scheduled_departure   <span class="kw">TIMESTAMPTZ</span>
-actual_departure      <span class="kw">TIMESTAMPTZ</span>
-cancelled             <span class="kw">BOOLEAN     NOT NULL</span>
-cancellation_code     <span class="kw">CHAR(1)     CHECK A/B/C/D</span>
-arr_delay_minutes     <span class="kw">DECIMAL</span>
-arr_del15             <span class="kw">BOOLEAN</span>   <span class="com">← derived</span></pre>
-          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
-            All transforms in <code>refresh_flights()</code>.
-            Self-logged in <code>job_log</code>.
-          </p>
+          <h3>The fix &mdash; the job types &amp; validates it</h3>
+<pre><span class="com">-- public.flights : typed, constrained</span>
+flight_date         <span class="kw">DATE</span>
+origin_airport_code <span class="kw">CHAR(3)      FK</span> &rarr; airports
+scheduled_departure <span class="kw">TIMESTAMPTZ</span>  <span class="com">-- HHMM &rarr; real timestamp</span>
+cancelled           <span class="kw">BOOLEAN</span>
+cancellation_code   <span class="kw">CHAR(1)      CHECK</span> (A/B/C/D)
+arr_delay_minutes   <span class="kw">NUMERIC</span>
+arr_del15           <span class="kw">BOOLEAN</span>       <span class="com">-- derived</span></pre>
+          <ul style="font-size:14px;margin-top:8px;">
+            <li>The database <strong>enforces</strong> validity on every write</li>
+            <li>Real dates/numbers &rarr; correct sorting, math, and indexes</li>
+            <li>FKs + CHECKs reject bad rows; NULL means "unknown"</li>
+          </ul>
         </div>
       </div>
     </div>
   </div>
 
   <!-- ===========================================================
-       SLIDE 5 — Enrichment (built)
+       SLIDE 4 — Batch jobs
        =========================================================== -->
   <div class="slide">
     <div class="logo">Capstone</div>
     <div class="slide-header">
-      <h2>Enrichment &mdash; joining weather to flights</h2>
-      <div class="subtitle">Two JOINs against weather_hourly + derived features. ~56s on 1.4M rows.</div>
+      <h2>Batch jobs &mdash; the pipeline runs itself</h2>
+      <div class="subtitle">Each step is a self-logging stored procedure. One call runs all nine.</div>
     </div>
     <div class="content">
       <div class="two-col">
         <div class="box">
-          <h3>The two joins</h3>
-<pre><span class="kw">FROM</span> flights f
-<span class="kw">LEFT JOIN</span> weather_hourly w_dep
-  <span class="kw">ON</span> w_dep.airport_code = f.origin_airport_code
- <span class="kw">AND</span> w_dep.obs_timestamp =
-     <span class="kw">DATE_TRUNC</span>(<span class="str">'hour'</span>, f.scheduled_departure)
-<span class="kw">LEFT JOIN</span> weather_hourly w_arr
-  <span class="kw">ON</span> w_arr.airport_code = f.dest_airport_code
- <span class="kw">AND</span> w_arr.obs_timestamp =
-     <span class="kw">DATE_TRUNC</span>(<span class="str">'hour'</span>, f.scheduled_arrival)</pre>
-          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
-            <code>LEFT JOIN</code> so flights without a weather match still
-            land in <code>flights_enriched</code> with NULL weather columns.
+          <h3>Anatomy of a batch job &mdash; <code>refresh_flights_enriched()</code></h3>
+          <p style="font-size:13.5px;margin-bottom:10px;">
+            In plain English, every job does the same five things:
+            <strong>log &ldquo;started&rdquo; &rarr; do the work &rarr; log &ldquo;OK&rdquo;</strong>
+            &mdash; or, if anything breaks, <strong>log &ldquo;FAILED&rdquo; and undo it all</strong>.
           </p>
+<pre style="font-size:12px;"><span class="kw">CREATE OR REPLACE PROCEDURE</span> refresh_flights_enriched()
+<span class="kw">LANGUAGE</span> plpgsql <span class="kw">AS</span> $$
+<span class="kw">DECLARE</span> v_job_id <span class="kw">BIGINT</span>; v_rows <span class="kw">INTEGER</span>;
+<span class="kw">BEGIN</span>
+  <span class="com">-- (1) record the run as RUNNING</span>
+  <span class="kw">INSERT INTO</span> job_log (job_name, status)
+    <span class="kw">VALUES</span> (<span class="str">'refresh_flights_enriched'</span>, <span class="str">'RUNNING'</span>)
+    <span class="kw">RETURNING</span> job_id <span class="kw">INTO</span> v_job_id;
+
+  <span class="kw">TRUNCATE</span> flights_enriched;          <span class="com">-- (2) idempotent rebuild</span>
+
+  <span class="kw">INSERT INTO</span> flights_enriched (...)   <span class="com">-- (3) the work: two joins</span>
+  <span class="kw">SELECT</span> f.flight_id, w_dep.temperature_c, w_dep.precipitation_mm, …
+  <span class="kw">FROM</span> flights f
+  <span class="kw">LEFT JOIN</span> weather_hourly w_dep
+    <span class="kw">ON</span> w_dep.airport_code  = f.origin_airport_code
+   <span class="kw">AND</span> w_dep.obs_timestamp = <span class="kw">DATE_TRUNC</span>(<span class="str">'hour'</span>, f.scheduled_departure)
+  <span class="kw">LEFT JOIN</span> weather_hourly w_arr
+    <span class="kw">ON</span> w_arr.airport_code  = f.dest_airport_code
+   <span class="kw">AND</span> w_arr.obs_timestamp = <span class="kw">DATE_TRUNC</span>(<span class="str">'hour'</span>, f.scheduled_arrival);
+
+  <span class="kw">GET DIAGNOSTICS</span> v_rows = <span class="kw">ROW_COUNT</span>;
+  <span class="kw">UPDATE</span> job_log <span class="kw">SET</span> status=<span class="str">'OK'</span>, rows_processed=v_rows … <span class="com">-- (4) OK</span>
+
+<span class="kw">EXCEPTION WHEN OTHERS THEN</span>              <span class="com">-- (5) log FAILED, rollback</span>
+  <span class="kw">UPDATE</span> job_log <span class="kw">SET</span> status=<span class="str">'FAILED'</span>, errors=<span class="kw">SQLERRM</span> …;
+  <span class="kw">RAISE</span>;
+<span class="kw">END</span>; $$;</pre>
         </div>
         <div class="box">
-          <h3>weather_bucket distribution (1.4M flights)</h3>
-          <table style="font-size:13px;">
-            <thead><tr><th>bucket</th><th style="text-align:right;">n</th><th style="text-align:right;">%</th></tr></thead>
-            <tbody>
-              <tr><td>clear</td><td style="text-align:right;">1,233,428</td><td style="text-align:right;">88.0%</td></tr>
-              <tr><td>light_rain</td><td style="text-align:right;">116,797</td><td style="text-align:right;">8.3%</td></tr>
-              <tr><td>fog</td><td style="text-align:right;">22,129</td><td style="text-align:right;">1.6%</td></tr>
-              <tr><td>heavy_rain</td><td style="text-align:right;">17,133</td><td style="text-align:right;">1.2%</td></tr>
-              <tr><td>snow</td><td style="text-align:right;">13,105</td><td style="text-align:right;">0.9%</td></tr>
-            </tbody>
-          </table>
-          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
-            Five buckets cover all weather we observe in the 263k hourly
-            records across 10 airports × 3 years.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===========================================================
-       SLIDE 6 — Model design
-       =========================================================== -->
-  <div class="slide">
-    <div class="logo">Capstone</div>
-    <div class="slide-header">
-      <h2>The model is a table</h2>
-      <div class="subtitle">No Python ML. No opaque artefacts. One SQL row per prediction rule.</div>
-    </div>
-    <div class="content">
-      <div class="box">
-        <h3>model_route_hour_weather &mdash; rich aggregates per bucket</h3>
-<pre><span class="kw">CREATE TABLE</span> model_route_hour_weather (
-    origin, dest, hour_of_day, weather_bucket,                <span class="com">-- the bucket keys</span>
-
-    avg_delay, median_delay, delay_p90,                       <span class="com">-- magnitude (continuous)</span>
-    pct_late, pct_cancelled,                                  <span class="com">-- likelihood</span>
-    pct_short, pct_average, pct_long, pct_extreme,            <span class="com">-- magnitude distribution</span>
-    sample_size,
-    <span class="kw">PRIMARY KEY</span> (origin, dest, hour_of_day, weather_bucket)
-);</pre>
-      </div>
-      <div class="two-col">
-        <div class="box">
-          <h3>The two output dimensions</h3>
+          <h3>Why batch jobs?</h3>
           <ul>
-            <li><strong>Late-likelihood</strong>: low &lt;20%, avg 20-50%, high &ge;50%</li>
-            <li><strong>Magnitude</strong>: short &le;30m, avg &le;3h, long &le;8h, extreme, cancelled</li>
-            <li><code>sample_size &lt; 10</code> &rarr; "no data, can't predict"</li>
-            <li>Every prediction traceable back to one row of the model</li>
+            <li><strong>Repeatable</strong> &mdash; rebuild the whole DB from raw with one command</li>
+            <li><strong>Auditable</strong> &mdash; every run logs its row count, duration, and any error</li>
+            <li><strong>Ordered</strong> &mdash; dependencies run in the correct sequence</li>
+            <li><strong>Safe</strong> &mdash; a failure rolls back its work but keeps the audit row</li>
+          </ul>
+          <h3 style="margin-top:16px;">Find it in the DB</h3>
+          <ul style="font-size:14px;">
+            <li>DataGrip: <code>uganda &rsaquo; public &rsaquo; Routines &rsaquo; refresh_flights_enriched()</code></li>
+            <li>psql: <code>\sf refresh_flights_enriched</code> &mdash; prints the live source</li>
+            <li>Repo: <code>sql/013_proc_refresh_flights_enriched.sql</code></li>
           </ul>
         </div>
-        <div class="box">
-          <h3>One training query &mdash; all 11 aggregates</h3>
-<pre><span class="kw">SELECT</span>
-  origin, dest, hour_of_day, weather_bucket,
-  <span class="kw">AVG</span>(arr_delay_minutes),
-  <span class="kw">PERCENTILE_CONT</span>(0.5) <span class="kw">WITHIN GROUP</span> (…),
-  <span class="kw">COUNT</span>(*) <span class="kw">FILTER</span> (<span class="kw">WHERE</span> arr_delay &gt; 15)
-    / <span class="kw">COUNT</span>(*)                <span class="com">-- pct_late</span>
-  …
-<span class="kw">FROM</span> flights_enriched
-<span class="kw">WHERE EXTRACT</span>(year FROM flight_date) <span class="kw">IN</span> (2022, 2023)
-<span class="kw">GROUP BY</span> 1, 2, 3, 4
-<span class="kw">HAVING COUNT</span>(*) &gt;= 10;</pre>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===========================================================
-       SLIDE 7 — Prediction step
-       =========================================================== -->
-  <div class="slide">
-    <div class="logo">Capstone</div>
-    <div class="slide-header">
-      <h2>Predicting 2024 &mdash; one LEFT JOIN</h2>
-      <div class="subtitle">Future flights × trained model → predictions. 20.3s on 484k flights.</div>
-    </div>
-    <div class="content">
-      <div class="two-col">
-        <div class="box">
-          <h3>The query</h3>
-<pre><span class="kw">SELECT</span>
-  f.flight_id,
-  m.median_delay <span class="kw">AS</span> exp_delay,
-  <span class="kw">CASE</span>
-    <span class="kw">WHEN</span> m.pct_late &lt; 0.20 <span class="kw">THEN</span> <span class="str">'low'</span>
-    <span class="kw">WHEN</span> m.pct_late &lt; 0.50 <span class="kw">THEN</span> <span class="str">'average'</span>
-    <span class="kw">ELSE</span>                       <span class="str">'high'</span>
-  <span class="kw">END</span> <span class="kw">AS</span> late_likelihood,
-  ...
-<span class="kw">FROM</span> flights_enriched fe
-<span class="kw">JOIN</span> flights f <span class="kw">USING</span> (flight_id)
-<span class="kw">LEFT JOIN</span> model_route_hour_weather m
-  <span class="kw">ON</span> m.origin = f.origin_airport_code
- <span class="kw">AND</span> m.dest   = f.dest_airport_code
- <span class="kw">AND</span> m.hour_of_day    = fe.hour_of_day
- <span class="kw">AND</span> m.weather_bucket = fe.dep_weather_bucket
-<span class="kw">WHERE EXTRACT</span>(year FROM f.flight_date) = 2024;</pre>
-        </div>
-        <div class="box">
-          <h3>Coverage on 2024 holdout</h3>
-          <div class="metric-grid" style="grid-template-columns:1fr 1fr;">
-            <div class="metric-card">
-              <div class="metric-num">483,897</div>
-              <div class="metric-label">total flights</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-num">98.5%</div>
-              <div class="metric-label">with prediction</div>
-            </div>
-          </div>
-          <ul style="margin-top:14px;">
-            <li><strong>476,447</strong> with a model match</li>
-            <li><strong>7,450</strong> &ldquo;no historical analogue&rdquo;<br>
-                <span style="color:var(--ink-500);font-size:14px;">(bucket has &lt;10 rows in 2022-2023 &mdash; honest fallback)</span></li>
-          </ul>
-          <p style="margin-top:10px;font-size:14px;color:var(--ink-500);">
-            <code>LEFT JOIN</code> + <code>sample_size &gt;= 10</code> means
-            every flight gets a row, predicted or not.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===========================================================
-       SLIDE 8 — Validation
-       =========================================================== -->
-  <div class="slide">
-    <div class="logo">Capstone</div>
-    <div class="slide-header">
-      <h2>Validation &mdash; how good is it?</h2>
-      <div class="subtitle">476,447 predictions evaluated against actual 2024 delays.</div>
-    </div>
-    <div class="content">
-      <div class="metric-grid">
-        <div class="metric-card">
-          <div class="metric-num">16.9 min</div>
-          <div class="metric-label">mean absolute error</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-num">78%</div>
-          <div class="metric-label">within ±15 min</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-num">84%</div>
-          <div class="metric-label">magnitude bucket correct</div>
-        </div>
       </div>
 
-      <div class="two-col" style="margin-top:20px;">
-        <div class="box">
-          <h3>Calibration of categorical labels</h3>
-          <table style="font-size:14px;">
-            <thead><tr><th>label</th><th style="text-align:right;">precision</th><th style="text-align:right;">MAE (min)</th></tr></thead>
-            <tbody>
-              <tr><td><span class="badge badge-green">low</span></td><td style="text-align:right;"><strong>84%</strong></td><td style="text-align:right;">12</td></tr>
-              <tr><td><span class="badge badge-amber">average</span></td><td style="text-align:right;">&mdash;</td><td style="text-align:right;">22</td></tr>
-              <tr><td><span class="badge badge-amber" style="background:#ffe2c8;">high</span></td><td style="text-align:right;">47%</td><td style="text-align:right;">40</td></tr>
-            </tbody>
-          </table>
-          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
-            "high" precision of 47% vs base rate of ~25% late flights &rarr;
-            <span class="highlight">~2× lift</span> on identifying delays.
-          </p>
-        </div>
-        <div class="box">
-          <h3>Accuracy tolerance ladder</h3>
-          <ul>
-            <li>±15 min &rarr; <strong>78%</strong> correct</li>
-            <li>±30 min &rarr; <strong>86%</strong> correct</li>
-            <li>±60 min &rarr; <strong>92%</strong> correct</li>
-          </ul>
-          <p style="margin-top:10px;font-size:14px;color:var(--ink-500);">
-            For a pure-SQL lookup model trained in <strong>13 seconds</strong>,
-            these are honest numbers. MAE grows with predicted severity
-            because variance grows &mdash; expected behaviour.
-          </p>
-        </div>
+      <div class="box" style="margin-top:18px;">
+        <h3>Demo &mdash; <code>CALL run_pipeline();</code></h3>
+<pre><span class="kw">CALL</span> run_pipeline();   <span class="com">-- nine steps, dependency order, one command</span>
+
+<span class="kw">SELECT</span> job_name, status, rows_processed, duration <span class="kw">FROM</span> job_log ...
+
+job_name                           status   rows          duration
+────────────────────────────────────────────────────────────────────
+refresh_airports                   <span style="color:#7be0a0;">OK</span>              872      0.02 s
+refresh_airlines                   <span style="color:#7be0a0;">OK</span>               16      2.09 s
+refresh_weather_hourly             <span style="color:#7be0a0;">OK</span>          263,040      3.63 s
+refresh_flights                    <span style="color:#7be0a0;">OK</span>        1,402,592    141.70 s
+refresh_routes                     <span style="color:#7be0a0;">OK</span>               90      0.93 s
+refresh_flights_enriched           <span style="color:#7be0a0;">OK</span>        1,402,592     55.84 s
+refresh_model_route_hour_weather   <span style="color:#7be0a0;">OK</span>            3,888      8.91 s
+predict_flights                    <span style="color:#7be0a0;">OK</span>          483,897     17.82 s
+validate_predictions               <span style="color:#7be0a0;">OK</span>               11      5.34 s
+────────────────────────────────────────────────────────────────────
+run_pipeline                       <span style="color:#7be0a0;">OK</span>        3,556,998    236.03 s   <span class="com">&larr; ~4 min end-to-end</span></pre>
       </div>
-    </div>
-  </div>
-
-  <!-- ===========================================================
-       SLIDE 9 — Demo output
-       =========================================================== -->
-  <div class="slide">
-    <div class="logo">Capstone</div>
-    <div class="slide-header">
-      <h2>Demo &mdash; predict_for_airport()</h2>
-      <div class="subtitle">The thing a real human would ask the database.</div>
-    </div>
-    <div class="content">
-      <pre><span class="kw">CALL</span> predict_for_airport(<span class="str">'LAX'</span>, <span class="kw">DATE</span> <span class="str">'2024-07-15'</span>);
-
-LAX departures on 2024-07-15  (forecast: thunderstorm 14:00-18:00)
-
-flight  route     dep    late_likelihood   most_likely_delay   exp     sample  explanation
-─────────────────────────────────────────────────────────────────────────────────────────────────
-DL142   LAX→ATL   14:30  <span class="str">high</span> (72%)        <span class="str">long</span> (~180m)        +180m   287     thunderstorm × 14h: 72% late, median 180m
-WN428   LAX→LAS   16:00  <span class="str">high</span> (75%)        average (~80m)      +80m    198     thunderstorm × 16h: many short delays
-UA306   LAX→ORD   15:15  <span class="str">high</span> (68%)        <span class="str">long</span> (~150m)        +150m   223     thunderstorm × 15h: 68% late
-AA204   LAX→DFW   11:30  average (38%)     average (~50m)      +50m    412     clear × 11h: 38% late, mild
-DL101   LAX→SEA   07:15  <span class="com">low</span> (12%)         short (~10m)        +10m    531     clear × 7h: almost always on-time
-B6217   LAX→JFK   23:50  —                 —                   —       4       <span class="com">no data, can't predict (n &lt; 10)</span>
-…</pre>
-      <p style="margin-top:14px;font-size:14px;color:var(--ink-500);">
-        Two categorical labels per flight &mdash; <strong>late-likelihood</strong>
-        (low/avg/high) and <strong>magnitude</strong> (short/avg/long/extreme/cancelled)
-        &mdash; plus the raw minutes and a sample size.
-        <span class="highlight">When history is too thin, we say so.</span>
-      </p>
     </div>
   </div>
 
@@ -628,22 +478,440 @@ demo_refresh_weather_hourly  <span style="color:#d14646;">FAILED</span>  NULL   
   </div>
 
   <!-- ===========================================================
-       SLIDE 11 — pgTAP tests (TODO)
+       SLIDE 6 — Architecture
        =========================================================== -->
   <div class="slide">
     <div class="logo">Capstone</div>
     <div class="slide-header">
-      <h2>Testing &mdash; pgTAP</h2>
-      <div class="subtitle">Database-level unit tests; capstone requirement.</div>
+      <h2>Architecture &mdash; ELT, four layers</h2>
+      <div class="subtitle">Python fetches and loads. PostgreSQL does everything else.</div>
     </div>
     <div class="content">
-      <div class="box todo">
-        <h3>To be filled once pgTAP suite is written</h3>
-        <p>Tests planned: (a) schema constraints — NOT NULLs, FKs, CHECKs are
-          in place; (b) procedure post-conditions — no orphan FKs after a refresh;
-          (c) prediction logic — for a hand-crafted training set with known
-          averages, <code>predict_flights()</code> produces those exact averages.</p>
+      <pre><span class="com">[ Python ]                          [ PostgreSQL — Uganda DB ]</span>
+
+  fetch_*.py     <span class="kw">COPY</span> &#9658;  staging.flights_raw      <span class="com">┐  raw, all TEXT</span>
+                                  staging.weather_raw      <span class="com">│</span>
+                                  staging.airports_raw     <span class="com">┘</span>
+                                          │
+                                          │  refresh_*()
+                                          ▼
+                            airports / airlines / weather_hourly / flights
+                                          │
+                                          │  refresh_flights_enriched()
+                                          ▼
+                            flights_enriched     <span class="com">← weather + features per flight</span>
+                                          │
+                                          │  refresh_model_route_hour_weather()
+                                          ▼
+                            model_route_hour_weather    <span class="com">← THE MODEL</span>
+                                          │
+                                          │  predict_flights()
+                                          ▼
+                            predictions   ───▶   validate_predictions()  ───▶  validation_results
+</pre>
+      <p style="margin-top:12px;font-size:14px;color:var(--ink-500);">
+        In plain terms: <span class="highlight">Python only loads the raw data; the database does all the cleaning and transforming</span>
+        &mdash; in SQL, which is version-controlled, re-runnable, and easy to inspect in DataGrip.
+        (That's the &ldquo;L before T&rdquo; &mdash; load first, transform inside the DB.)
+      </p>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 6b — The schema (tables & why)
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>The schema &mdash; ten tables, four roles</h2>
+      <div class="subtitle">Dimensions, facts, model, output &mdash; plus a system log. Nine foreign keys tie it together.</div>
+    </div>
+    <div class="content">
+      <div class="three-col">
+        <div class="box">
+          <h3>Dimensions <span class="badge badge-blue">reference</span></h3>
+          <ul style="font-size:14px;">
+            <li><code>airports</code> &mdash; code, name, lat/lon</li>
+            <li><code>airlines</code> &mdash; carrier codes</li>
+            <li><code>routes</code> &mdash; 90 valid pairs (derived)</li>
+          </ul>
+          <p style="font-size:13px;color:var(--ink-500);">Small, stable, shared by everything.</p>
+        </div>
+        <div class="box">
+          <h3>Facts <span class="badge badge-amber">events</span></h3>
+          <ul style="font-size:14px;">
+            <li><code>flights</code> &mdash; 1.4M, FK &rarr; airports&times;2, airlines</li>
+            <li><code>weather_hourly</code> &mdash; 263k, by airport &times; hour</li>
+            <li><code>flights_enriched</code> &mdash; 1:1 with flights + weather</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Model &amp; output <span class="badge badge-green">results</span></h3>
+          <ul style="font-size:14px;">
+            <li><code>model_route_hour_weather</code> &mdash; 3,888 rules</li>
+            <li><code>predictions</code> &mdash; 484k, FK &rarr; flights</li>
+            <li><code>validation_results</code> &mdash; accuracy metrics</li>
+          </ul>
+        </div>
       </div>
+      <div class="two-col" style="margin-top:8px;">
+        <div class="box">
+          <h3>Why this design?</h3>
+          <ul style="font-size:14px;">
+            <li><strong>Star-ish / dimensional</strong> &mdash; small dimensions, one big fact; the model is a natural roll-up of that fact</li>
+            <li><strong>FKs enforce integrity</strong> &mdash; a flight can't reference an airport or airline code that doesn't exist</li>
+            <li><strong>Normalise dimensions, denormalise the hot path</strong> &mdash; <code>flights_enriched</code> pre-joins weather so the model query stays fast</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Plus one system table</h3>
+          <ul style="font-size:14px;">
+            <li><code>job_log</code> &mdash; every batch run; standalone (no FK) so an audit row survives a rollback</li>
+          </ul>
+          <p style="font-size:13px;color:var(--ink-500);">Full ER diagram next &rarr;</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 6c — ER diagram
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Entity&ndash;relationship diagram</h2>
+      <div class="subtitle">Ten tables, nine foreign keys. Arrows point child &rarr; parent (the &ldquo;one&rdquo; side).</div>
+    </div>
+    <div class="content" style="display:flex;flex-direction:column;align-items:center;">
+      <svg viewBox="0 0 1120 540" style="width:100%;max-height:64vh;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;">
+        <defs>
+          <marker id="fk" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L8,3 L0,6 Z" fill="#5c6670"/>
+          </marker>
+        </defs>
+
+        <g stroke="#5c6670" stroke-width="1.6" fill="none" marker-end="url(#fk)">
+          <line x1="400" y1="275" x2="230" y2="275"/>
+          <line x1="445" y1="300" x2="230" y2="410"/>
+          <line x1="138" y1="162" x2="138" y2="248"/>
+          <line x1="400" y1="118" x2="232" y2="258"/>
+          <line x1="730" y1="205" x2="580" y2="262"/>
+          <line x1="730" y1="345" x2="580" y2="292"/>
+        </g>
+        <g stroke="#8aa1b2" stroke-width="1.4" stroke-dasharray="4 4" fill="none">
+          <line x1="576" y1="430" x2="732" y2="222"/>
+        </g>
+
+        <g font-size="11" fill="#5c6670">
+          <text x="250" y="268">origin, dest &#215;2</text>
+          <text x="300" y="360">airline</text>
+          <text x="146" y="208">&#215;2</text>
+          <text x="300" y="180">&#215;2</text>
+          <text x="648" y="224">1:1</text>
+          <text x="648" y="330">flight_id</text>
+          <text x="600" y="345" transform="rotate(-38 645 340)" fill="#8aa1b2">joined &#215;2 (no FK)</text>
+        </g>
+
+        <g>
+          <rect x="50" y="112" width="176" height="50" rx="8" fill="#dceaf6" stroke="#a9c8e4" stroke-width="1.5"/>
+          <text x="138" y="133" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">routes</text>
+          <text x="138" y="150" text-anchor="middle" font-size="10.5" fill="#5c6670">90</text>
+
+          <rect x="50" y="250" width="176" height="50" rx="8" fill="#dceaf6" stroke="#a9c8e4" stroke-width="1.5"/>
+          <text x="138" y="271" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">airports</text>
+          <text x="138" y="288" text-anchor="middle" font-size="10.5" fill="#5c6670">872</text>
+
+          <rect x="50" y="388" width="176" height="50" rx="8" fill="#dceaf6" stroke="#a9c8e4" stroke-width="1.5"/>
+          <text x="138" y="409" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">airlines</text>
+          <text x="138" y="426" text-anchor="middle" font-size="10.5" fill="#5c6670">17</text>
+        </g>
+        <g>
+          <rect x="400" y="90" width="176" height="50" rx="8" fill="#dff5e6" stroke="#b6e3c4" stroke-width="1.5"/>
+          <text x="488" y="110" text-anchor="middle" font-size="11.5" font-weight="700" fill="#111418">model_route_hour_weather</text>
+          <text x="488" y="127" text-anchor="middle" font-size="10.5" fill="#5c6670">3,888</text>
+
+          <rect x="400" y="250" width="176" height="50" rx="8" fill="#e6f1fa" stroke="#cfe1f2" stroke-width="1.5"/>
+          <text x="488" y="271" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">flights</text>
+          <text x="488" y="288" text-anchor="middle" font-size="10.5" fill="#5c6670">1,402,592</text>
+
+          <rect x="400" y="410" width="176" height="50" rx="8" fill="#e6f1fa" stroke="#cfe1f2" stroke-width="1.5"/>
+          <text x="488" y="431" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">weather_hourly</text>
+          <text x="488" y="448" text-anchor="middle" font-size="10.5" fill="#5c6670">263,040</text>
+        </g>
+        <g>
+          <rect x="730" y="180" width="176" height="50" rx="8" fill="#fff3c8" stroke="#ffd977" stroke-width="1.5"/>
+          <text x="818" y="201" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">flights_enriched</text>
+          <text x="818" y="218" text-anchor="middle" font-size="10.5" fill="#5c6670">1,402,592</text>
+
+          <rect x="730" y="320" width="176" height="50" rx="8" fill="#dff5e6" stroke="#b6e3c4" stroke-width="1.5"/>
+          <text x="818" y="341" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">predictions</text>
+          <text x="818" y="358" text-anchor="middle" font-size="10.5" fill="#5c6670">483,897</text>
+
+          <rect x="730" y="440" width="176" height="50" rx="8" fill="#dff5e6" stroke="#b6e3c4" stroke-width="1.5"/>
+          <text x="818" y="461" text-anchor="middle" font-size="13" font-weight="700" fill="#111418">validation_results</text>
+          <text x="818" y="478" text-anchor="middle" font-size="10.5" fill="#5c6670">44</text>
+        </g>
+        <g>
+          <rect x="955" y="440" width="150" height="50" rx="8" fill="#f0f0f0" stroke="#dddddd" stroke-width="1.5"/>
+          <text x="1030" y="461" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">job_log</text>
+          <text x="1030" y="478" text-anchor="middle" font-size="10.5" fill="#5c6670">64 &middot; system</text>
+        </g>
+      </svg>
+      <p style="font-size:13px;color:var(--ink-500);margin-top:10px;text-align:center;max-width:920px;">
+        <span class="badge badge-blue">dimensions</span>
+        <span class="badge badge-grey" style="background:#e6f1fa;color:#004a8c;">facts</span>
+        <span class="badge badge-amber">enriched</span>
+        <span class="badge badge-green">model / output</span>
+        &mdash; <code>weather_hourly</code> is joined into <code>flights_enriched</code> by airport + hour (dep &amp; arr), matched not FK-linked.
+      </p>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 5 — Enrichment (built)
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Enrichment &mdash; joining weather to flights</h2>
+      <div class="subtitle">For each flight, attach the weather at its airport at that hour &mdash; twice: takeoff and landing.</div>
+    </div>
+    <div class="content">
+      <div class="two-col">
+        <div class="box">
+          <h3>The two joins</h3>
+<pre><span class="kw">FROM</span> flights f
+<span class="kw">LEFT JOIN</span> weather_hourly w_dep
+  <span class="kw">ON</span> w_dep.airport_code = f.origin_airport_code
+ <span class="kw">AND</span> w_dep.obs_timestamp =
+     <span class="kw">DATE_TRUNC</span>(<span class="str">'hour'</span>, f.scheduled_departure)
+<span class="kw">LEFT JOIN</span> weather_hourly w_arr
+  <span class="kw">ON</span> w_arr.airport_code = f.dest_airport_code
+ <span class="kw">AND</span> w_arr.obs_timestamp =
+     <span class="kw">DATE_TRUNC</span>(<span class="str">'hour'</span>, f.scheduled_arrival)</pre>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            <code>LEFT JOIN</code> so flights without a weather match still
+            land in <code>flights_enriched</code> with NULL weather columns.
+          </p>
+        </div>
+        <div class="box">
+          <h3>weather_bucket distribution (1.4M flights)</h3>
+          <table style="font-size:13px;">
+            <thead><tr><th>bucket</th><th style="text-align:right;">n</th><th style="text-align:right;">%</th></tr></thead>
+            <tbody>
+              <tr><td>clear</td><td style="text-align:right;">1,233,428</td><td style="text-align:right;">88.0%</td></tr>
+              <tr><td>light_rain</td><td style="text-align:right;">116,797</td><td style="text-align:right;">8.3%</td></tr>
+              <tr><td>fog</td><td style="text-align:right;">22,129</td><td style="text-align:right;">1.6%</td></tr>
+              <tr><td>heavy_rain</td><td style="text-align:right;">17,133</td><td style="text-align:right;">1.2%</td></tr>
+              <tr><td>snow</td><td style="text-align:right;">13,105</td><td style="text-align:right;">0.9%</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            Five buckets cover all weather we observe in the 263k hourly
+            records across 10 airports × 3 years.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 6 — Model design
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>The model is a table</h2>
+      <div class="subtitle">No AI magic &mdash; just averages from the past, one row per situation.</div>
+    </div>
+    <div class="content">
+      <div class="box">
+        <h3>It's a cheat-sheet of averages</h3>
+        <p>Take every past flight (2022&ndash;2023) and sort it into buckets by <strong>route + hour + weather</strong>.
+        For each bucket, write down what usually happened. To predict a new flight, look up its bucket and read the numbers.</p>
+      </div>
+      <div class="two-col">
+        <div class="box">
+          <h3>One row per bucket &mdash; 3,888 rows</h3>
+          <table style="font-size:14px;">
+            <thead><tr>
+              <th>route</th><th>hour</th><th>weather</th>
+              <th style="text-align:right;">% late</th><th style="text-align:right;">typical delay</th><th style="text-align:right;">flights seen</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>LAX&rarr;LAS</td><td>06:00</td><td>clear</td>
+                  <td style="text-align:right;">3%</td><td style="text-align:right;">~0 min</td><td style="text-align:right;">635</td></tr>
+              <tr><td>MCO&rarr;DEN</td><td>19:00</td><td>light rain</td>
+                  <td style="text-align:right;"><strong>64%</strong></td><td style="text-align:right;"><strong>~32 min</strong></td><td style="text-align:right;">89</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            A clear early-morning flight is almost never late; a rainy evening one often is.
+            Buckets with fewer than 10 past flights &rarr; <em>"not enough history, can't predict."</em>
+          </p>
+        </div>
+        <div class="box">
+          <h3>Built with one <code>GROUP BY</code></h3>
+<pre><span class="kw">SELECT</span> route, hour, weather,
+       <span class="kw">AVG</span>(delay)   <span class="kw">AS</span> typical_delay,
+       pct_late, <span class="kw">COUNT</span>(*) <span class="kw">AS</span> flights_seen
+<span class="kw">FROM</span>   flights_enriched
+<span class="kw">WHERE</span>  year <span class="kw">IN</span> (2022, 2023)   <span class="com">-- learn from the past</span>
+<span class="kw">GROUP BY</span> route, hour, weather
+<span class="kw">HAVING</span> <span class="kw">COUNT</span>(*) &gt;= 10;        <span class="com">-- skip thin buckets</span></pre>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            No Python, no ML library. One query builds all 3,888 rules &mdash; and every prediction traces back to exactly one row.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 7 — Prediction step
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Predicting 2024 &mdash; one LEFT JOIN</h2>
+      <div class="subtitle">Match each 2024 flight to its route+hour+weather bucket, and read off the prediction. 20s on 484k flights.</div>
+    </div>
+    <div class="content">
+      <div class="two-col">
+        <div class="box">
+          <h3>The query</h3>
+<pre><span class="kw">SELECT</span>
+  f.flight_id,
+  m.median_delay <span class="kw">AS</span> exp_delay,
+  <span class="kw">CASE</span>
+    <span class="kw">WHEN</span> m.pct_late &lt; 0.20 <span class="kw">THEN</span> <span class="str">'low'</span>
+    <span class="kw">WHEN</span> m.pct_late &lt; 0.50 <span class="kw">THEN</span> <span class="str">'average'</span>
+    <span class="kw">ELSE</span>                       <span class="str">'high'</span>
+  <span class="kw">END</span> <span class="kw">AS</span> late_likelihood,
+  ...
+<span class="kw">FROM</span> flights_enriched fe
+<span class="kw">JOIN</span> flights f <span class="kw">USING</span> (flight_id)
+<span class="kw">LEFT JOIN</span> model_route_hour_weather m
+  <span class="kw">ON</span> m.origin = f.origin_airport_code
+ <span class="kw">AND</span> m.dest   = f.dest_airport_code
+ <span class="kw">AND</span> m.hour_of_day    = fe.hour_of_day
+ <span class="kw">AND</span> m.weather_bucket = fe.dep_weather_bucket
+<span class="kw">WHERE EXTRACT</span>(year FROM f.flight_date) = 2024;</pre>
+        </div>
+        <div class="box">
+          <h3>Coverage on 2024 holdout</h3>
+          <div class="metric-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="metric-card">
+              <div class="metric-num">483,897</div>
+              <div class="metric-label">total flights</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-num">98.5%</div>
+              <div class="metric-label">with prediction</div>
+            </div>
+          </div>
+          <ul style="margin-top:14px;">
+            <li><strong>476,447</strong> with a model match</li>
+            <li><strong>7,450</strong> &ldquo;no historical analogue&rdquo;<br>
+                <span style="color:var(--ink-500);font-size:14px;">(bucket has &lt;10 rows in 2022-2023 &mdash; honest fallback)</span></li>
+          </ul>
+          <p style="margin-top:10px;font-size:14px;color:var(--ink-500);">
+            <code>LEFT JOIN</code> + <code>sample_size &gt;= 10</code> means
+            every flight gets a row, predicted or not.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 8 — Validation
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Validation &mdash; how good is it?</h2>
+      <div class="subtitle">476,447 predictions evaluated against actual 2024 delays.</div>
+    </div>
+    <div class="content">
+      <div class="metric-grid">
+        <div class="metric-card">
+          <div class="metric-num">16.9 min</div>
+          <div class="metric-label">average we're off by</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-num">78%</div>
+          <div class="metric-label">within ±15 min</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-num">84%</div>
+          <div class="metric-label">delay size correct</div>
+        </div>
+      </div>
+
+      <div class="two-col" style="margin-top:20px;">
+        <div class="box">
+          <h3>Calibration of categorical labels</h3>
+          <table style="font-size:14px;">
+            <thead><tr><th>label</th><th style="text-align:right;">precision</th><th style="text-align:right;">MAE (min)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge badge-green">low</span></td><td style="text-align:right;"><strong>84%</strong></td><td style="text-align:right;">12</td></tr>
+              <tr><td><span class="badge badge-amber">average</span></td><td style="text-align:right;">&mdash;</td><td style="text-align:right;">22</td></tr>
+              <tr><td><span class="badge badge-amber" style="background:#ffe2c8;">high</span></td><td style="text-align:right;">47%</td><td style="text-align:right;">40</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:13px;color:var(--ink-500);margin-top:8px;">
+            "high" precision of 47% vs base rate of ~25% late flights &rarr;
+            <span class="highlight">~2× lift</span> on identifying delays.
+          </p>
+        </div>
+        <div class="box">
+          <h3>Accuracy tolerance ladder</h3>
+          <ul>
+            <li>±15 min &rarr; <strong>78%</strong> correct</li>
+            <li>±30 min &rarr; <strong>86%</strong> correct</li>
+            <li>±60 min &rarr; <strong>92%</strong> correct</li>
+          </ul>
+          <p style="margin-top:10px;font-size:14px;color:var(--ink-500);">
+            For a pure-SQL lookup model trained in <strong>13 seconds</strong>,
+            these are honest numbers. MAE grows with predicted severity
+            because variance grows &mdash; expected behaviour.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SLIDE 9 — Demo output
+       =========================================================== -->
+  <div class="slide">
+    <div class="logo">Capstone</div>
+    <div class="slide-header">
+      <h2>Demo &mdash; predict_for_airport()</h2>
+      <div class="subtitle">The thing a real human would ask the database.</div>
+    </div>
+    <div class="content">
+      <pre><span class="kw">CALL</span> predict_for_airport(<span class="str">'LAX'</span>, <span class="kw">DATE</span> <span class="str">'2024-07-15'</span>);
+
+LAX departures on 2024-07-15  (forecast: thunderstorm 14:00-18:00)
+
+flight  route     dep    late_likelihood   most_likely_delay   exp     sample  explanation
+─────────────────────────────────────────────────────────────────────────────────────────────────
+DL142   LAX→ATL   14:30  <span class="str">high</span> (72%)        <span class="str">long</span> (~180m)        +180m   287     thunderstorm × 14h: 72% late, median 180m
+WN428   LAX→LAS   16:00  <span class="str">high</span> (75%)        average (~80m)      +80m    198     thunderstorm × 16h: many short delays
+UA306   LAX→ORD   15:15  <span class="str">high</span> (68%)        <span class="str">long</span> (~150m)        +150m   223     thunderstorm × 15h: 68% late
+AA204   LAX→DFW   11:30  average (38%)     average (~50m)      +50m    412     clear × 11h: 38% late, mild
+DL101   LAX→SEA   07:15  <span class="com">low</span> (12%)         short (~10m)        +10m    531     clear × 7h: almost always on-time
+B6217   LAX→JFK   23:50  —                 —                   —       4       <span class="com">no data, can't predict (n &lt; 10)</span>
+…</pre>
+      <p style="margin-top:14px;font-size:14px;color:var(--ink-500);">
+        Two categorical labels per flight &mdash; <strong>late-likelihood</strong>
+        (low/avg/high) and <strong>magnitude</strong> (short/avg/long/extreme/cancelled)
+        &mdash; plus the raw minutes and a sample size.
+        <span class="highlight">When history is too thin, we say so.</span>
+      </p>
     </div>
   </div>
 
@@ -663,7 +931,6 @@ demo_refresh_weather_hourly  <span style="color:#d14646;">FAILED</span>  NULL   
             <li>End-to-end PostgreSQL pipeline, 3 years × 10 airports</li>
             <li>Explainable prediction model — entirely in SQL</li>
             <li>Per-job audit trail with first-class failure handling</li>
-            <li>pgTAP test suite for schemas + procedures + prediction logic</li>
             <li>Live demo: <code>predict_for_airport(airport, date)</code></li>
           </ul>
         </div>
