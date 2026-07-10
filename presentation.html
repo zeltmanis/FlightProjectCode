@@ -299,7 +299,7 @@ cancelled          <span class="str">'0.0'</span>          <span class="com">-- 
 cancellation_code  <span class="str">''</span>             <span class="com">-- empty string, not NULL</span>
 arr_delay_minutes  <span class="str">'0.0'</span>          <span class="com">-- a number, as text</span></pre>
           <ul style="font-size:14px;margin-top:8px;">
-            <li>No validation &mdash; <span class="str">'garbage'</span> would load just fine</li>
+            <li>No validation &mdash; a malformed value would load without error</li>
             <li>Text won't sort or do math; indexes are meaningless</li>
             <li>Empty string &ne; NULL; no FKs, no CHECKs possible</li>
           </ul>
@@ -338,9 +338,9 @@ arr_del15           <span class="kw">BOOLEAN</span>       <span class="com">-- d
         <div class="box">
           <h3>Anatomy of a batch job &mdash; <code>refresh_flights_enriched()</code></h3>
           <p style="font-size:13.5px;margin-bottom:10px;">
-            In plain English, every job does the same five things:
+            Every job follows the same five steps:
             <strong>log &ldquo;started&rdquo; &rarr; do the work &rarr; log &ldquo;OK&rdquo;</strong>
-            &mdash; or, if anything breaks, <strong>log &ldquo;FAILED&rdquo; and undo it all</strong>.
+            &mdash; or, if anything breaks, <strong>log &ldquo;FAILED&rdquo; and roll it all back</strong>.
           </p>
 <pre style="font-size:12px;"><span class="kw">CREATE OR REPLACE PROCEDURE</span> refresh_flights_enriched()
 <span class="kw">LANGUAGE</span> plpgsql <span class="kw">AS</span> $$
@@ -430,7 +430,7 @@ run_pipeline                       <span style="color:#7be0a0;">OK</span>       
   <span class="str">'ATL'</span>, <span class="str">'CORRUPT_TIMESTAMP'</span>, ...
 );</pre>
           <p style="font-size:13px;color:var(--ink-500);">
-            Simulates real ETL hitting a fat-fingered upstream value.
+            Simulates a malformed value arriving from an upstream source.
           </p>
         </div>
         <div class="box">
@@ -510,7 +510,7 @@ demo_refresh_weather_hourly  <span style="color:#d14646;">FAILED</span>  NULL   
                             predictions   ───▶   validate_predictions()  ───▶  validation_results
 </pre>
       <p style="margin-top:12px;font-size:14px;color:var(--ink-500);">
-        In plain terms: <span class="highlight">Python only loads the raw data; the database does all the cleaning and transforming</span>
+        <span class="highlight">Python only loads the raw data; the database performs all cleaning and transformation</span>
         &mdash; in SQL, which is version-controlled, re-runnable, and easy to inspect in DataGrip.
         (That's the &ldquo;L before T&rdquo; &mdash; load first, transform inside the DB.)
       </p>
@@ -583,88 +583,13 @@ demo_refresh_weather_hourly  <span style="color:#d14646;">FAILED</span>  NULL   
       <h2>Entity&ndash;relationship diagram</h2>
       <div class="subtitle">Ten tables, nine foreign keys. Arrows point child &rarr; parent (the &ldquo;one&rdquo; side).</div>
     </div>
-    <div class="content" style="display:flex;flex-direction:column;align-items:center;">
-      <svg viewBox="0 0 1120 540" style="width:100%;max-height:64vh;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;">
-        <defs>
-          <marker id="fk" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-            <path d="M0,0 L8,3 L0,6 Z" fill="#5c6670"/>
-          </marker>
-        </defs>
-
-        <g stroke="#5c6670" stroke-width="1.6" fill="none" marker-end="url(#fk)">
-          <line x1="400" y1="275" x2="230" y2="275"/>
-          <line x1="445" y1="300" x2="230" y2="410"/>
-          <line x1="138" y1="162" x2="138" y2="248"/>
-          <line x1="400" y1="118" x2="232" y2="258"/>
-          <line x1="730" y1="205" x2="580" y2="262"/>
-          <line x1="730" y1="345" x2="580" y2="292"/>
-        </g>
-        <g stroke="#8aa1b2" stroke-width="1.4" stroke-dasharray="4 4" fill="none">
-          <line x1="576" y1="430" x2="732" y2="222"/>
-        </g>
-
-        <g font-size="11" fill="#5c6670">
-          <text x="250" y="268">origin, dest &#215;2</text>
-          <text x="300" y="360">airline</text>
-          <text x="146" y="208">&#215;2</text>
-          <text x="300" y="180">&#215;2</text>
-          <text x="648" y="224">1:1</text>
-          <text x="648" y="330">flight_id</text>
-          <text x="600" y="345" transform="rotate(-38 645 340)" fill="#8aa1b2">joined &#215;2 (no FK)</text>
-        </g>
-
-        <g>
-          <rect x="50" y="112" width="176" height="50" rx="8" fill="#dceaf6" stroke="#a9c8e4" stroke-width="1.5"/>
-          <text x="138" y="133" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">routes</text>
-          <text x="138" y="150" text-anchor="middle" font-size="10.5" fill="#5c6670">90</text>
-
-          <rect x="50" y="250" width="176" height="50" rx="8" fill="#dceaf6" stroke="#a9c8e4" stroke-width="1.5"/>
-          <text x="138" y="271" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">airports</text>
-          <text x="138" y="288" text-anchor="middle" font-size="10.5" fill="#5c6670">872</text>
-
-          <rect x="50" y="388" width="176" height="50" rx="8" fill="#dceaf6" stroke="#a9c8e4" stroke-width="1.5"/>
-          <text x="138" y="409" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">airlines</text>
-          <text x="138" y="426" text-anchor="middle" font-size="10.5" fill="#5c6670">17</text>
-        </g>
-        <g>
-          <rect x="400" y="90" width="176" height="50" rx="8" fill="#dff5e6" stroke="#b6e3c4" stroke-width="1.5"/>
-          <text x="488" y="110" text-anchor="middle" font-size="11.5" font-weight="700" fill="#111418">model_route_hour_weather</text>
-          <text x="488" y="127" text-anchor="middle" font-size="10.5" fill="#5c6670">3,888</text>
-
-          <rect x="400" y="250" width="176" height="50" rx="8" fill="#e6f1fa" stroke="#cfe1f2" stroke-width="1.5"/>
-          <text x="488" y="271" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">flights</text>
-          <text x="488" y="288" text-anchor="middle" font-size="10.5" fill="#5c6670">1,402,592</text>
-
-          <rect x="400" y="410" width="176" height="50" rx="8" fill="#e6f1fa" stroke="#cfe1f2" stroke-width="1.5"/>
-          <text x="488" y="431" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">weather_hourly</text>
-          <text x="488" y="448" text-anchor="middle" font-size="10.5" fill="#5c6670">263,040</text>
-        </g>
-        <g>
-          <rect x="730" y="180" width="176" height="50" rx="8" fill="#fff3c8" stroke="#ffd977" stroke-width="1.5"/>
-          <text x="818" y="201" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">flights_enriched</text>
-          <text x="818" y="218" text-anchor="middle" font-size="10.5" fill="#5c6670">1,402,592</text>
-
-          <rect x="730" y="320" width="176" height="50" rx="8" fill="#dff5e6" stroke="#b6e3c4" stroke-width="1.5"/>
-          <text x="818" y="341" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">predictions</text>
-          <text x="818" y="358" text-anchor="middle" font-size="10.5" fill="#5c6670">483,897</text>
-
-          <rect x="730" y="440" width="176" height="50" rx="8" fill="#dff5e6" stroke="#b6e3c4" stroke-width="1.5"/>
-          <text x="818" y="461" text-anchor="middle" font-size="13" font-weight="700" fill="#111418">validation_results</text>
-          <text x="818" y="478" text-anchor="middle" font-size="10.5" fill="#5c6670">44</text>
-        </g>
-        <g>
-          <rect x="955" y="440" width="150" height="50" rx="8" fill="#f0f0f0" stroke="#dddddd" stroke-width="1.5"/>
-          <text x="1030" y="461" text-anchor="middle" font-size="14" font-weight="700" fill="#111418">job_log</text>
-          <text x="1030" y="478" text-anchor="middle" font-size="10.5" fill="#5c6670">64 &middot; system</text>
-        </g>
-      </svg>
-      <p style="font-size:13px;color:var(--ink-500);margin-top:10px;text-align:center;max-width:920px;">
-        <span class="badge badge-blue">dimensions</span>
-        <span class="badge badge-grey" style="background:#e6f1fa;color:#004a8c;">facts</span>
-        <span class="badge badge-amber">enriched</span>
-        <span class="badge badge-green">model / output</span>
-        &mdash; <code>weather_hourly</code> is joined into <code>flights_enriched</code> by airport + hour (dep &amp; arr), matched not FK-linked.
-      </p>
+    <div class="content">
+      <div class="center-content">
+        <div class="box" style="max-width:640px;text-align:center;">
+          <h3 style="color:var(--blue-700);">Reviewed separately</h3>
+          <p style="margin-top:6px;">The full entity&ndash;relationship diagram is shown in its own window during the walkthrough.</p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -723,13 +648,13 @@ demo_refresh_weather_hourly  <span style="color:#d14646;">FAILED</span>  NULL   
     <div class="logo">Capstone</div>
     <div class="slide-header">
       <h2>The model is a table</h2>
-      <div class="subtitle">No AI magic &mdash; just averages from the past, one row per situation.</div>
+      <div class="subtitle">A lookup table of historical aggregates &mdash; one row per route, hour and weather bucket.</div>
     </div>
     <div class="content">
       <div class="box">
-        <h3>It's a cheat-sheet of averages</h3>
+        <h3>Historical aggregates, grouped into buckets</h3>
         <p>Take every past flight (2022&ndash;2023) and sort it into buckets by <strong>route + hour + weather</strong>.
-        For each bucket, write down what usually happened. To predict a new flight, look up its bucket and read the numbers.</p>
+        For each bucket, we compute its historical delay statistics. To predict a new flight, we look up its bucket.</p>
       </div>
       <div class="two-col">
         <div class="box">
@@ -775,7 +700,7 @@ demo_refresh_weather_hourly  <span style="color:#d14646;">FAILED</span>  NULL   
     <div class="logo">Capstone</div>
     <div class="slide-header">
       <h2>Predicting 2024 &mdash; one LEFT JOIN</h2>
-      <div class="subtitle">Match each 2024 flight to its route+hour+weather bucket, and read off the prediction. 20s on 484k flights.</div>
+      <div class="subtitle">Match each 2024 flight to its route+hour+weather bucket, and return its prediction. 20s on 484k flights.</div>
     </div>
     <div class="content">
       <div class="two-col">
@@ -838,7 +763,7 @@ demo_refresh_weather_hourly  <span style="color:#d14646;">FAILED</span>  NULL   
       <div class="metric-grid">
         <div class="metric-card">
           <div class="metric-num">16.9 min</div>
-          <div class="metric-label">average we're off by</div>
+          <div class="metric-label">average error</div>
         </div>
         <div class="metric-card">
           <div class="metric-num">78%</div>
@@ -875,7 +800,7 @@ demo_refresh_weather_hourly  <span style="color:#d14646;">FAILED</span>  NULL   
           </ul>
           <p style="margin-top:10px;font-size:14px;color:var(--ink-500);">
             For a pure-SQL lookup model trained in <strong>13 seconds</strong>,
-            these are honest numbers. MAE grows with predicted severity
+            these are strong results. Error grows with predicted severity
             because variance grows &mdash; expected behaviour.
           </p>
         </div>
@@ -890,7 +815,7 @@ demo_refresh_weather_hourly  <span style="color:#d14646;">FAILED</span>  NULL   
     <div class="logo">Capstone</div>
     <div class="slide-header">
       <h2>Demo &mdash; predict_for_airport()</h2>
-      <div class="subtitle">The thing a real human would ask the database.</div>
+      <div class="subtitle">A question an operations planner would ask the database.</div>
     </div>
     <div class="content">
       <pre><span class="kw">CALL</span> predict_for_airport(<span class="str">'LAX'</span>, <span class="kw">DATE</span> <span class="str">'2024-07-15'</span>);
